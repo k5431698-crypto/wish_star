@@ -27,6 +27,73 @@ wishText.addEventListener('input', () => {
   wishBtn.disabled = wishText.value.trim().length === 0;
 });
 
+// 소원 저장 (이 기기의 브라우저 localStorage에만 저장)
+const STORE_KEY = 'wishStar.wishes';
+
+function loadWishes() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveWish(text) {
+  const wish = { id: Date.now().toString(36), text, at: Date.now() };
+  try {
+    const list = loadWishes();
+    list.unshift(wish);
+    localStorage.setItem(STORE_KEY, JSON.stringify(list.slice(0, 100)));
+    return true;
+  } catch (err) {
+    return false; // 사생활 보호 모드 등으로 저장이 막힌 경우
+  }
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+// 내 소원 보기
+const mineSheet = document.getElementById('mineSheet');
+const mineList = document.getElementById('mineList');
+const mineEmpty = document.getElementById('mineEmpty');
+const openMine = document.getElementById('openMine');
+
+function renderMine() {
+  const list = loadWishes();
+  mineList.replaceChildren();
+  mineEmpty.hidden = list.length > 0;
+  for (const w of list) {
+    const li = document.createElement('li');
+    li.className = 'wish-item';
+    const p = document.createElement('p');
+    p.className = 'wish-text';
+    p.textContent = w.text; // textContent로 넣어 입력한 글이 코드로 실행되지 않게 함
+    const meta = document.createElement('span');
+    meta.className = 'wish-meta';
+    meta.textContent = `${formatDate(w.at)} · 아직 도착한 답글이 없어요`;
+    li.append(p, meta);
+    mineList.appendChild(li);
+  }
+  openMine.textContent = list.length ? `내 소원 보기 (${list.length})` : '내 소원 보기';
+}
+
+openMine.addEventListener('click', () => {
+  renderMine();
+  mineSheet.hidden = false;
+  document.body.style.overflow = 'hidden';
+});
+document.getElementById('closeMine').addEventListener('click', () => {
+  mineSheet.hidden = true;
+  document.body.style.overflow = '';
+});
+
+renderMine();
+
 const wishStar = document.getElementById('wishStar');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let sending = false;
@@ -88,7 +155,8 @@ form.addEventListener('submit', (e) => {
   const fromRect = wishText.getBoundingClientRect();
   const toRect = wishStar.getBoundingClientRect();
 
-  // 다음 단계에서 여기에서 소원을 브라우저에 저장한다
+  const saved = saveWish(text);
+  renderMine();
   wishText.value = '';
   countEl.textContent = '0';
   wishText.blur();
@@ -99,7 +167,9 @@ form.addEventListener('submit', (e) => {
   }
 
   setTimeout(() => {
-    toast.textContent = '소원이 별에게 닿았어요. 오늘 밤도 편안하길 바라요.';
+    toast.textContent = saved
+      ? '소원이 별에게 닿았어요. 오늘 밤도 편안하길 바라요.'
+      : '소원이 별에게 닿았어요. (이 브라우저에서는 소원을 저장하지 못했어요)';
     sending = false;
   }, reduceMotion ? 200 : 2600);
 });

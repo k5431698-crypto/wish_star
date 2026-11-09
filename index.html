@@ -42,7 +42,21 @@
     </form>
 
     <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+    <button type="button" class="ghost-btn" id="openMine">내 소원 보기</button>
   </main>
+
+  <section class="sheet" id="mineSheet" hidden aria-labelledby="mineTitle">
+    <div class="sheet-inner">
+      <header class="sheet-head">
+        <h2 id="mineTitle">내 소원</h2>
+        <button type="button" class="ghost-btn small" id="closeMine">닫기</button>
+      </header>
+      <p class="sheet-note">이 소원들은 이 기기의 브라우저에만 저장돼 있어요.</p>
+      <ul class="wish-list" id="mineList"></ul>
+      <p class="empty" id="mineEmpty">아직 비워 둔 소원이 없어요.</p>
+    </div>
+  </section>
 
   <script src="app.js"></script>
 </body>

@@ -174,3 +174,68 @@ body {
   opacity: 0;
   will-change: transform, opacity;
 }
+
+/* 내 소원 보기 */
+.ghost-btn {
+  display: block;
+  margin: 28px auto 0;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid rgba(233, 230, 255, 0.3);
+  border-radius: 22px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.ghost-btn.small { margin: 0; min-height: 36px; padding: 0 16px; font-size: 0.85rem; }
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  background: #0a0e24;
+}
+
+.sheet[hidden] { display: none; }
+
+.sheet-inner {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 32px);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sheet-head h2 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+
+.sheet-note, .empty {
+  margin: 12px 0 20px;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+.wish-list { margin: 0; padding: 0; list-style: none; }
+
+.wish-item {
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.wish-text {
+  margin: 0 0 10px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wish-meta { font-size: 0.78rem; color: var(--text-soft); }
