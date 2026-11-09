@@ -13,6 +13,35 @@
   <main class="app">
     <h1 class="title">소원 별 우체국</h1>
     <p class="subtitle">조용한 밤, 별에게 마음을 건네 보세요</p>
+
+    <div class="wish-star" id="wishStar" aria-hidden="true">
+      <svg viewBox="0 0 100 100" width="120" height="120">
+        <defs>
+          <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff7e0" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#fff7e0" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="48" fill="url(#glow)"/>
+        <polygon fill="#fff7e0" points="50,16 58,40 84,40 63,55 71,80 50,65 29,80 37,55 16,40 42,40"/>
+      </svg>
+    </div>
+
+    <form class="wish-form" id="wishForm" autocomplete="off">
+      <label class="sr-only" for="wishText">소원</label>
+      <textarea id="wishText" maxlength="200" rows="4"
+        placeholder="별에게 하고 싶은 말을 적어 보세요"></textarea>
+      <div class="counter"><span id="count">0</span> / 200</div>
+
+      <p class="notice">
+        이름, 연락처, 학교·회사 등 나를 알 수 있는 정보는 적지 말아 주세요.
+        소원은 익명으로 다른 사람에게 전달돼요.
+      </p>
+
+      <button type="submit" class="wish-btn" id="wishBtn" disabled>소원 빌기</button>
+    </form>
+
+    <p class="toast" id="toast" role="status" aria-live="polite"></p>
   </main>
 
   <script src="app.js"></script>

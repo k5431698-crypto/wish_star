@@ -14,3 +14,26 @@
     sky.appendChild(star);
   }
 })();
+
+// 소원 입력창: 글자 수 표시, 빈 글이면 버튼 비활성화
+const form = document.getElementById('wishForm');
+const wishText = document.getElementById('wishText');
+const wishBtn = document.getElementById('wishBtn');
+const countEl = document.getElementById('count');
+const toast = document.getElementById('toast');
+
+wishText.addEventListener('input', () => {
+  countEl.textContent = wishText.value.length;
+  wishBtn.disabled = wishText.value.trim().length === 0;
+});
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = wishText.value.trim();
+  if (!text) return;
+  // 다음 단계에서 별빛 애니메이션과 저장이 여기에 들어간다
+  toast.textContent = '소원이 별에게 닿고 있어요…';
+  wishText.value = '';
+  countEl.textContent = '0';
+  wishBtn.disabled = true;
+});
