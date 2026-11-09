@@ -293,3 +293,16 @@ body {
   line-height: 1.6;
   color: var(--text-soft);
 }
+
+/* 별똥별 */
+.meteor {
+  position: fixed;
+  z-index: 2;
+  width: 90px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(to left, rgba(255, 247, 224, 0), var(--star));
+  box-shadow: 0 0 8px 1px rgba(255, 247, 224, 0.6);
+  pointer-events: none;
+  transform-origin: left center;
+}

@@ -230,3 +230,91 @@ form.addEventListener('submit', (e) => {
     if (distressed) openHelpSheet();
   }, reduceMotion ? 200 : 2600);
 });
+
+// 별 터치 놀이: 밤하늘 작은 별을 톡 건드리면 반짝, 10번 모으면 별똥별이 되어 날아감
+const HIT_RADIUS = 26;     // 손가락으로 누를 수 있는 범위(px)
+const TAPS_TO_METEOR = 10; // 별똥별이 되는 터치 횟수
+
+function nearestSkyStar(x, y) {
+  let best = null;
+  let bestDist = HIT_RADIUS;
+  document.querySelectorAll('#sky .s').forEach((el) => {
+    if (el.style.visibility === 'hidden') return;
+    const r = el.getBoundingClientRect();
+    const d = Math.hypot(r.left + r.width / 2 - x, r.top + r.height / 2 - y);
+    if (d < bestDist) { best = el; bestDist = d; }
+  });
+  return best;
+}
+
+function sparkle(el) {
+  if (reduceMotion) return;
+  el.animate(
+    [
+      { transform: 'scale(1)', opacity: 0.9 },
+      { transform: 'scale(3.2)', opacity: 1, offset: 0.4 },
+      { transform: 'scale(1)', opacity: 0.9 },
+    ],
+    { duration: 700, easing: 'ease-out' }
+  );
+}
+
+function launchMeteor(el) {
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  const y = r.top + r.height / 2;
+  el.style.visibility = 'hidden';
+  el.dataset.taps = '0';
+  if (!reduceMotion) {
+    const m = document.createElement('span');
+    m.className = 'meteor';
+    m.style.left = x + 'px';
+    m.style.top = y + 'px';
+    document.body.appendChild(m);
+    const dx = -(window.innerWidth * 0.7);
+    const dy = window.innerHeight * 0.45;
+    m.animate(
+      [
+        { transform: 'translate(0,0) rotate(-32deg)', opacity: 0 },
+        { opacity: 1, offset: 0.15 },
+        { transform: `translate(${dx}px,${dy}px) rotate(-32deg)`, opacity: 0 },
+      ],
+      { duration: 1400, easing: 'ease-in' }
+    ).onfinish = () => m.remove();
+  }
+  // 잠시 뒤 새 자리에 다시 떠오름
+  setTimeout(() => {
+    el.style.left = Math.random() * 100 + '%';
+    el.style.top = Math.random() * 100 + '%';
+    el.style.visibility = '';
+  }, 6000);
+}
+
+// 큰 별: 터치할수록 점점 빛나고, 가만두면 천천히 가라앉음
+const MAX_GLOW = 10;
+let glow = 0;
+function paintGlow() {
+  const t = glow / MAX_GLOW;
+  const blur = 14 + t * 36;
+  const alpha = 0.6 + t * 0.4;
+  wishStar.style.filter =
+    `drop-shadow(0 0 ${blur}px rgba(255,247,224,${alpha})) brightness(${1 + t * 0.6})`;
+}
+setInterval(() => {
+  if (glow > 0) { glow -= 1; paintGlow(); }
+}, 4000);
+
+document.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('button, a, textarea, input, label, dialog, [role="dialog"]')) return;
+  if (e.target.closest('#wishStar')) {
+    if (glow < MAX_GLOW) glow += 1;
+    paintGlow();
+    return;
+  }
+  const el = nearestSkyStar(e.clientX, e.clientY);
+  if (!el) return;
+  const taps = (Number(el.dataset.taps) || 0) + 1;
+  el.dataset.taps = String(taps);
+  if (taps >= TAPS_TO_METEOR) launchMeteor(el);
+  else sparkle(el);
+});
