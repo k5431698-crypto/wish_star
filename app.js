@@ -94,6 +94,32 @@ document.getElementById('closeMine').addEventListener('click', () => {
 
 renderMine();
 
+// 마음이 힘들 때 도움받을 곳 안내
+const helpSheet = document.getElementById('helpSheet');
+
+function openHelpSheet() {
+  helpSheet.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeHelpSheet() {
+  helpSheet.hidden = true;
+  document.body.style.overflow = '';
+}
+document.getElementById('openHelp').addEventListener('click', openHelpSheet);
+document.getElementById('closeHelp').addEventListener('click', closeHelpSheet);
+
+// 많이 힘든 마음이 담긴 말인지 살펴본다. 소원은 막지 않고, 따뜻한 안내만 건넨다.
+const DISTRESS_WORDS = [
+  '죽고 싶', '죽고싶', '죽을래', '죽어버리', '죽어 버리', '자살', '자해',
+  '사라지고 싶', '사라지고싶', '살기 싫', '살기싫', '살고 싶지 않', '살고싶지 않',
+  '목숨을 끊', '끝내고 싶', '끝내고싶', '없어지고 싶', '없어지고싶',
+];
+
+function seemsDistressed(text) {
+  const t = text.replace(/\s+/g, ' ');
+  return DISTRESS_WORDS.some((w) => t.includes(w));
+}
+
 const wishStar = document.getElementById('wishStar');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let sending = false;
@@ -155,6 +181,7 @@ form.addEventListener('submit', (e) => {
   const fromRect = wishText.getBoundingClientRect();
   const toRect = wishStar.getBoundingClientRect();
 
+  const distressed = seemsDistressed(text);
   const saved = saveWish(text);
   renderMine();
   wishText.value = '';
@@ -171,5 +198,6 @@ form.addEventListener('submit', (e) => {
       ? '소원이 별에게 닿았어요. 오늘 밤도 편안하길 바라요.'
       : '소원이 별에게 닿았어요. (이 브라우저에서는 소원을 저장하지 못했어요)';
     sending = false;
+    if (distressed) openHelpSheet();
   }, reduceMotion ? 200 : 2600);
 });

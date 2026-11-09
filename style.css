@@ -239,3 +239,57 @@ body {
 }
 
 .wish-meta { font-size: 0.78rem; color: var(--text-soft); }
+
+/* 마음이 힘들 때 안내 */
+.text-link {
+  display: block;
+  margin: 14px auto 0;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.help-lead {
+  margin: 16px 0 20px;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.help-list { margin: 0; padding: 0; list-style: none; }
+
+.help-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.help-list span { font-size: 0.85rem; color: var(--text-soft); }
+
+.call {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 10px 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ffe9a8, #ffd1e8);
+  color: #2a2255;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.help-emergency {
+  margin: 20px 4px 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
