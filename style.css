@@ -1,0 +1,74 @@
+:root {
+  --sky-top: #0b1026;
+  --sky-mid: #151a3d;
+  --sky-bottom: #2a2255;
+  --star: #fff7e0;
+  --text: #e9e6ff;
+  --text-soft: #b9b4e0;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-bottom) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+/* 밤하늘 별 */
+.sky {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sky .s {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--star);
+  box-shadow: 0 0 6px 1px rgba(255, 247, 224, 0.55);
+  opacity: 0.2;
+  animation: twinkle var(--dur, 4s) ease-in-out var(--delay, 0s) infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.8); }
+  50%      { opacity: 0.9;  transform: scale(1.1); }
+}
+
+/* 화면 내용 */
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 40px) 24px calc(env(safe-area-inset-bottom) + 32px);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+  color: var(--text-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky .s { animation: none; opacity: 0.6; }
+}
