@@ -293,12 +293,27 @@ function launchMeteor(el) {
 // 큰 별: 터치할수록 점점 빛나고, 가만두면 천천히 가라앉음
 const MAX_GLOW = 10;
 let glow = 0;
+// 큰 별 색: 누를 때마다 다음 색으로 (처음 색은 원래의 따뜻한 노랑)
+const STAR_COLORS = [
+  { hex: '#fff7e0', rgb: '255,247,224' },
+  { hex: '#ffd1e3', rgb: '255,209,227' },
+  { hex: '#cfe8ff', rgb: '207,232,255' },
+  { hex: '#d9ffe0', rgb: '217,255,224' },
+  { hex: '#e4d4ff', rgb: '228,212,255' },
+];
+let colorIdx = 0;
+function nextStarColor() {
+  colorIdx = (colorIdx + 1) % STAR_COLORS.length;
+  const c = STAR_COLORS[colorIdx].hex;
+  wishStar.querySelectorAll('stop').forEach((el) => el.setAttribute('stop-color', c));
+  wishStar.querySelector('polygon').setAttribute('fill', c);
+}
 function paintGlow() {
   const t = glow / MAX_GLOW;
   const blur = 14 + t * 36;
   const alpha = 0.6 + t * 0.4;
   wishStar.style.filter =
-    `drop-shadow(0 0 ${blur}px rgba(255,247,224,${alpha})) brightness(${1 + t * 0.6})`;
+    `drop-shadow(0 0 ${blur}px rgba(${STAR_COLORS[colorIdx].rgb},${alpha})) brightness(${1 + t * 0.6})`;
 }
 setInterval(() => {
   if (glow > 0) { glow -= 1; paintGlow(); }
@@ -308,6 +323,7 @@ document.addEventListener('pointerdown', (e) => {
   if (e.target.closest('button, a, textarea, input, label, dialog, [role="dialog"]')) return;
   if (e.target.closest('#wishStar')) {
     if (glow < MAX_GLOW) glow += 1;
+    nextStarColor();
     paintGlow();
     return;
   }
