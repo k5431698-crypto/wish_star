@@ -24,6 +24,7 @@ const toast = document.getElementById('toast');
 
 wishText.addEventListener('input', () => {
   countEl.textContent = wishText.value.length;
+  toast.textContent = ''; // 고쳐 쓰기 시작하면 이전 안내는 지운다
   wishBtn.disabled = wishText.value.trim().length === 0;
 });
 
@@ -120,6 +121,27 @@ function seemsDistressed(text) {
   return DISTRESS_WORDS.some((w) => t.includes(w));
 }
 
+// 글 걸러내기: 개인정보와 거친 말을 보내기 전에 부드럽게 알려 준다.
+// (브라우저에서만 하는 1차 확인이라 완벽하지 않다. 2단계에서는 서버에서도 확인해야 한다.)
+const BAD_WORDS = ['시발', '씨발', '씨바', '병신', '개새끼', '좆', '지랄', '느금', '섹스', '야동'];
+
+function checkWish(text) {
+  if (/[\w.+-]+@[\w-]+\.[\w.-]+/.test(text)) {
+    return '이메일 주소가 들어 있는 것 같아요. 나를 알 수 있는 정보는 지우고 다시 적어 주세요.';
+  }
+  if (/(?:\d[\s.\-]*){9,}/.test(text)) {
+    return '전화번호나 번호 같은 숫자가 길게 들어 있어요. 나를 알 수 있는 정보는 지우고 다시 적어 주세요.';
+  }
+  if (/(https?:\/\/|www\.)\S+|\b[\w-]+\.(com|net|kr|org|io|me)\b/i.test(text)) {
+    return '인터넷 주소(링크)는 소원에 넣을 수 없어요. 지우고 다시 적어 주세요.';
+  }
+  const compact = text.replace(/[\s.\-_*]/g, '');
+  if (BAD_WORDS.some((w) => compact.includes(w))) {
+    return '별에게는 따뜻한 말을 건네 주세요. 거친 말은 지우고 다시 적어 주세요.';
+  }
+  return null;
+}
+
 const wishStar = document.getElementById('wishStar');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let sending = false;
@@ -174,6 +196,13 @@ form.addEventListener('submit', (e) => {
   e.preventDefault();
   const text = wishText.value.trim();
   if (!text || sending) return;
+
+  const problem = checkWish(text);
+  if (problem) {
+    toast.textContent = problem;
+    return; // 글은 그대로 두어서 고쳐 쓸 수 있게 한다
+  }
+
   sending = true;
   wishBtn.disabled = true;
   toast.textContent = '';
