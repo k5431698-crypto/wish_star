@@ -20,8 +20,8 @@
    - [x] 폰에서 GitHub 저장소 만들기 → `wish_star` (Public)
    - [x] 로컬 커밋 push
    - [x] 저장소 Settings → Pages → Source: Deploy from a branch → Branch: `main` / `/(root)` → Save
-   - [ ] 1~2분 뒤 `https://k5431698-crypto.github.io/wish_star/` 를 폰에서 열어 확인
-2. (나중에, 말씀하시면 진행) 2단계: 서버 붙이기
+   - [x] 폰에서 배포된 사이트 열어 확인 완료
+2. (진행 중) 2단계: 서버 붙이기 — 서버 후보 2개 비교안을 사용자에게 보여주고 고르는 중 (후보: Supabase / Cloudflare Workers+D1)
    - 남의 소원을 읽고 답글을 쓰는 화면에 "신고" 버튼 추가 (1단계에는 남의 글이 없어서 아직 붙일 곳이 없음)
    - 입력 단계 걸러내기는 우회가 쉬우므로, 서버에서도 한 번 더 걸러야 함
    - 로그인 없이 내 소원의 답글을 다시 보는 방법 제안 + 무료 서버 후보 2개 비교
