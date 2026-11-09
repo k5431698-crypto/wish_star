@@ -21,7 +21,7 @@
    - [x] 로컬 커밋 push
    - [x] 저장소 Settings → Pages → Source: Deploy from a branch → Branch: `main` / `/(root)` → Save
    - [x] 폰에서 배포된 사이트 열어 확인 완료
-2. (진행 중) 2단계: 서버 붙이기 — 서버 후보 2개 비교안을 사용자에게 보여주고 고르는 중 (후보: Supabase / Cloudflare Workers+D1)
+2. (진행 중) 2단계: 서버 붙이기 — **Supabase로 결정**. 지금: 표 설계 `supabase/schema.sql` 작성 완료(wishes/replies/reports, 브라우저는 표 직접 접근 불가·서버 함수로만). 다음: 사용자가 Supabase 프로젝트 만들고 SQL 실행 → Edge Function(소원 올리기·남의 소원 보기·답글·신고, 서버 필터) → 사이트 연결. 번호표 방식 기본, "내 소원 열쇠" 문구는 아직 미정
    - 남의 소원을 읽고 답글을 쓰는 화면에 "신고" 버튼 추가 (1단계에는 남의 글이 없어서 아직 붙일 곳이 없음)
    - 입력 단계 걸러내기는 우회가 쉬우므로, 서버에서도 한 번 더 걸러야 함
    - 로그인 없이 내 소원의 답글을 다시 보는 방법 제안 + 무료 서버 후보 2개 비교
