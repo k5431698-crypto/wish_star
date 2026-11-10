@@ -36,6 +36,8 @@
 
 - **Blender 사용 방식**: 사용자 컴퓨터의 Blender와 연결하는 커넥터는 없음(폰 사용). 대신 이 클라우드 환경에서 `pip install bpy`(Blender 5.2, 헤드리스)로 직접 돌려 이미지·3D 모델을 만듦. CPU 렌더만 가능(GPU 없음, 4코어). 640×360 샘플 24 시험 렌더 약 4초 확인. 만든 결과물은 저장소 `assets/`에 넣어 Three.js 페이지(`island.html`)에 합치는 계획(하늘·바다 파노라마, 3D 캐릭터를 8방향 스프라이트로 렌더, 섬·등대 glTF 등)
 
+- **Blender 3D 캐릭터 첫 렌더**: `blender/character.py`(실행 방법은 파일 맨 위 주석)로 동자승 모델 생성·렌더. 결과 `assets/character-front.png`(배경 투명), `assets/character-preview.png`(보라색 배경 미리보기). 다음: 방향 8개 × 걷기 동작 프레임을 렌더해서 스프라이트로 만들어 `island.js`의 코드로 그린 캐릭터와 교체
+
 ## 다음에 할 일
 1. 폰에서 배포된 사이트를 열어 확인 (배포 자체는 완료)
    - [x] 폰에서 GitHub 저장소 만들기 → `wish_star` (Public)
