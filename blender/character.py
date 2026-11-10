@@ -6,6 +6,9 @@ import bpy, mathutils
 
 out = sys.argv[2]
 yaw = float(sys.argv[3]) if len(sys.argv) > 3 else 28.0
+style = sys.argv[4] if len(sys.argv) > 4 else 'monk'   # monk | bunny | star | cozy
+res = int(sys.argv[5]) if len(sys.argv) > 5 else 900
+samples = int(sys.argv[6]) if len(sys.argv) > 6 else 96
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 sc = bpy.context.scene
@@ -23,8 +26,9 @@ def mat(name, rgb, rough=0.6, sss=0.0, emit=None):
     return m
 
 SKIN = mat('skin', (1.0, 0.84, 0.74), 0.55, sss=0.25)
-ROBE = mat('robe', (0.62, 0.64, 0.80), 0.85)
-ROBE2 = mat('robe2', (0.50, 0.52, 0.70), 0.85)
+ROBE_COL = {'monk': (0.62, 0.64, 0.80), 'bunny': (0.95, 0.92, 0.90), 'star': (0.16, 0.18, 0.40), 'cozy': (0.93, 0.78, 0.80)}[style]
+ROBE = mat('robe', ROBE_COL, 0.85)
+ROBE2 = mat('robe2', tuple(c * 0.8 for c in ROBE_COL), 0.85)
 BELT = mat('belt', (0.80, 0.60, 0.42), 0.7)
 SHOE = mat('shoe', (0.97, 0.95, 0.92), 0.5)
 DARK = mat('dark', (0.04, 0.025, 0.05), 0.15)
@@ -87,11 +91,58 @@ for sx in (-1, 1):
 
 # 소매와 합장한 손
 for sx in (-1, 1):
-    s = sphere('sleeve', (sx * 0.135, -0.125, 0.335), (0.052, 0.052, 0.115), ROBE, rot=(math.radians(-52), math.radians(sx * 20), 0))
+    s = sphere('sleeve', (sx * 0.135, -0.125, 0.335), (0.046, 0.046, 0.1), ROBE, rot=(math.radians(-50), math.radians(sx * 18), 0))
 sphere('hands', (0, -0.205, 0.365), (0.034, 0.04, 0.046), SKIN)
 # 고무신
 for sx in (-1, 1):
     sphere('shoe', (sx * 0.095, -0.04, 0.042), (0.068, 0.115, 0.05), SHOE)
+
+# ---- 스타일별 장식 ----
+def dome(name, scale, loc, m, cut=0.0):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=1, location=loc)
+    o = bpy.context.object; o.name = name
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < cut], context='VERTS')
+    bm.to_mesh(o.data); bm.free()
+    o.scale = scale; o.data.materials.append(m)
+    bpy.ops.object.shade_smooth()
+    return o
+
+if style == 'bunny':
+    HOOD = mat('hood', (0.98, 0.96, 0.95), 0.9)
+    PINK = mat('pink', (1.0, 0.72, 0.8), 0.8)
+    dome('hood', (0.292, 0.278, 0.272), (0, 0.005, 0.735), HOOD, cut=0.12)
+    for sx in (-1, 1):
+        sphere('ear', (sx * 0.1, 0.0, 1.02), (0.05, 0.03, 0.2), HOOD, rot=(0, math.radians(sx * 12), 0))
+        sphere('earIn', (sx * 0.1, -0.022, 1.02), (0.03, 0.015, 0.15), PINK, rot=(0, math.radians(sx * 12), 0))
+    sphere('tail', (0, 0.2, 0.12), (0.07, 0.07, 0.07), HOOD)
+elif style == 'star':
+    GOLD = mat('gold', (1.0, 0.8, 0.3), 0.35)
+    CAPE = mat('cape', (0.28, 0.25, 0.55), 0.8)
+    BAG = mat('bag', (0.72, 0.5, 0.36), 0.7)
+    sphere('cape', (0, 0.1, 0.30), (0.23, 0.07, 0.28), CAPE)
+    for i, (x, z) in enumerate([(-0.09, 0.36), (0.1, 0.30), (-0.03, 0.17), (0.12, 0.17)]):
+        bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=0.022, depth=0.012, location=(x, -0.19, z), rotation=(math.radians(90), 0, 0))
+        st = bpy.context.object; st.data.materials.append(GOLD)
+    # 별 머리핀
+    bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=0.05, depth=0.02, location=(0.17, -0.14, 0.93), rotation=(math.radians(90), math.radians(10), 0))
+    bpy.context.object.data.materials.append(GOLD)
+    # 우편 가방
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0.2, -0.02, 0.17)); bg_ = bpy.context.object
+    bg_.scale = (0.07, 0.1, 0.085); bg_.data.materials.append(BAG)
+    bev = bg_.modifiers.new('b', 'BEVEL'); bev.width = 0.02; bev.segments = 4
+    bpy.ops.object.shade_smooth()
+elif style == 'cozy':
+    BEAN = mat('beanie', (0.55, 0.45, 0.80), 0.9)
+    SCARF = mat('scarf', (1.0, 0.62, 0.7), 0.9)
+    SCARF2 = mat('scarf2', (1.0, 0.95, 0.9), 0.9)
+    dome('beanie', (0.29, 0.275, 0.27), (0, 0.0, 0.745), BEAN, cut=0.2)
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.265, minor_radius=0.032, major_segments=64, minor_segments=16, location=(0, 0, 0.805))
+    bpy.context.object.scale = (1.0, 0.95, 1.0); bpy.context.object.data.materials.append(BEAN); bpy.ops.object.shade_smooth()
+    sphere('pom', (0, 0, 1.0), (0.055, 0.055, 0.055), SCARF2)
+    for i, (z, m_) in enumerate([(0.455, SCARF), (0.43, SCARF2), (0.405, SCARF)]):
+        bpy.ops.mesh.primitive_torus_add(major_radius=0.17, minor_radius=0.022, major_segments=64, minor_segments=16, location=(0, 0, z))
+        t = bpy.context.object; t.scale = (1, 0.9, 1); t.data.materials.append(m_); bpy.ops.object.shade_smooth()
 
 # 바닥 (그림자만 받는 부드러운 바닥)
 bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, 0))
@@ -124,8 +175,8 @@ co.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
 
 # 렌더
 sc.render.engine = 'CYCLES'; sc.cycles.device = 'CPU'
-sc.cycles.samples = 96; sc.cycles.use_denoising = True
-sc.render.resolution_x = 900; sc.render.resolution_y = 900
+sc.cycles.samples = samples; sc.cycles.use_denoising = True
+sc.render.resolution_x = res; sc.render.resolution_y = res
 sc.render.film_transparent = True   # 배경 투명 PNG (사이트에 바로 쓸 수 있음)
 sc.render.image_settings.color_mode = 'RGBA'
 sc.view_settings.view_transform = 'Filmic' if 'Filmic' in bpy.types.ColorManagedViewSettings.bl_rna.properties['view_transform'].enum_items.keys() else 'Standard'
