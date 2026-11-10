@@ -192,6 +192,38 @@ function flashStar() {
   );
 }
 
+// 서버(Supabase)로 소원 보내기. 실패해도 브라우저 저장과 별 애니메이션은 그대로 진행한다.
+const SERVER_URL = 'https://qoebnedjozuszwlptupy.supabase.co';
+const SERVER_KEY = 'sb_publishable_Z3pX1Y10Er5Iw8aGXx2qeg_-7_RPVGm'; // 공개용 키라서 코드에 있어도 안전
+const TOKEN_KEY = 'wishStar.token';
+
+// 내 소원 번호표: 이 기기에서만 만들어 보관하는 무작위 글자 (서버에는 해시로만 저장됨)
+function getMyToken() {
+  try {
+    let t = localStorage.getItem(TOKEN_KEY);
+    if (!t) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      t = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(TOKEN_KEY, t);
+    }
+    return t;
+  } catch (err) {
+    return null;
+  }
+}
+
+function sendToServer(text) {
+  const token = getMyToken();
+  if (!token) return Promise.resolve(false);
+  return fetch(`${SERVER_URL}/functions/v1/submit-wish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SERVER_KEY },
+    body: JSON.stringify({ body: text, token }),
+  })
+    .then((res) => res.ok)
+    .catch(() => false);
+}
+
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   const text = wishText.value.trim();
@@ -212,6 +244,7 @@ form.addEventListener('submit', (e) => {
 
   const distressed = seemsDistressed(text);
   const saved = saveWish(text);
+  sendToServer(text);
   renderMine();
   wishText.value = '';
   countEl.textContent = '0';
