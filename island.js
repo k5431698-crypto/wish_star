@@ -15,7 +15,7 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
+  renderer.toneMappingExposure = 0.9;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -139,25 +139,32 @@
   // 구름 (파스텔빛 뭉게구름, 수평선 근처)
   (function clouds() {
     function cloudTex(seed) {
+      const W = 1024, Hh = 512;
       const c = document.createElement('canvas');
-      c.width = 512; c.height = 256;
+      c.width = W; c.height = Hh;
       const g = c.getContext('2d');
-      let s = seed;
-      const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
-      for (let i = 0; i < 60; i++) {
-        const x = 80 + r() * 352, y = 120 + (r() - 0.5) * 90 - Math.sin((x / 512) * Math.PI) * 50;
-        const rad = 30 + r() * 60;
-        const gr = g.createRadialGradient(x, y - rad * 0.3, 0, x, y, rad);
-        gr.addColorStop(0, 'rgba(255,240,235,0.55)'); gr.addColorStop(0.6, 'rgba(235,205,230,0.25)'); gr.addColorStop(1, 'rgba(200,180,230,0)');
+      let sd = seed;
+      const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 70; i++) {
+        const x = 260 + r() * 504, y = 270 + (r() - 0.5) * 120 - Math.sin(((x - 260) / 504) * Math.PI) * 70;
+        const rad = 45 + r() * 90;
+        const gr = g.createRadialGradient(x, y - rad * 0.25, 0, x, y, rad);
+        gr.addColorStop(0, 'rgba(255,244,240,0.5)'); gr.addColorStop(0.55, 'rgba(240,215,235,0.22)'); gr.addColorStop(1, 'rgba(210,190,235,0)');
         g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
       }
+      // 가장자리를 부드럽게 지워서 그림 경계가 보이지 않게 함
+      g.globalCompositeOperation = 'destination-in';
+      const m = g.createRadialGradient(W / 2, Hh / 2 + 20, 20, W / 2, Hh / 2 + 20, W * 0.48);
+      m.addColorStop(0, 'rgba(0,0,0,1)'); m.addColorStop(0.55, 'rgba(0,0,0,0.9)'); m.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = m; g.fillRect(0, 0, W, Hh);
       const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+      t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
       return t;
     }
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + Math.random() * 0.4;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex(1000 + i * 77), transparent: true, depthWrite: false, fog: false, opacity: 0.85 }));
-      sp.scale.set(420, 210, 1);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex(1000 + i * 77), transparent: true, depthWrite: false, fog: false, opacity: 0.8 }));
+      sp.scale.set(520, 260, 1);
       sp.position.set(Math.cos(a) * 700, 60 + Math.random() * 60, Math.sin(a) * 700);
       scene.add(sp);
     }
@@ -223,7 +230,7 @@
   (function shape() {
     const pos = terrainGeo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const grassA = lin(0x6f5daa), grassB = lin(0x46706a), tip = lin(0xb9a8f0), sand = lin(0xd8c2b6), wet = lin(0x7b6f8c), path = lin(0xcbb9a8);
+    const grassA = lin(0x9d93d0), grassB = lin(0x86ada1), tip = lin(0xc9bcf3), sand = lin(0xe0cfc4), wet = lin(0x8a7fa0), path = lin(0xd8c8b8);
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
@@ -244,38 +251,69 @@
   terrain.receiveShadow = true;
   scene.add(terrain);
 
-  // ---- 바람에 흔들리는 풀 ----
+  // ---- 바람에 흔들리는 풀 (부드러운 풀 다발 그림을 십자로 세움) ----
   const uniTime = { value: 0 };
   (function grass() {
-    const blade = new THREE.BufferGeometry();
-    blade.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.035, 0, 0, 0.035, 0, 0, 0, 0.32, 0]), 3));
-    blade.setAttribute('color', new THREE.BufferAttribute(new Float32Array([0.35, 0.35, 0.4, 0.35, 0.35, 0.4, 1, 1, 1]), 3));
-    blade.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide, vertexColors: true });
+    // 풀 다발 그림: 아래는 어둡고 끝으로 갈수록 밝은, 살짝 휘어진 풀잎 여러 장
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 128;
+    const g = cv.getContext('2d');
+    let seed = 7;
+    const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 22; i++) {
+      const bx = 34 + r() * 60, tx = bx + (r() - 0.5) * 56, ty = 12 + r() * 60;
+      const cx = bx + (tx - bx) * 0.3 + (r() - 0.5) * 12, cy = 126 - (126 - ty) * 0.6;
+      const w = 2.2 + r() * 2.2;
+      const gr = g.createLinearGradient(0, 126, 0, ty);
+      gr.addColorStop(0, 'rgb(205,205,215)'); gr.addColorStop(1, 'rgb(255,255,255)');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(bx - w, 127);
+      g.quadraticCurveTo(cx - w * 0.5, cy, tx, ty);
+      g.quadraticCurveTo(cx + w * 0.5, cy, bx + w, 127);
+      g.fill();
+    }
+    const tuftTex = new THREE.CanvasTexture(cv);
+    tuftTex.encoding = THREE.sRGBEncoding;
+    tuftTex.anisotropy = 4;
+
+    const p1 = new THREE.PlaneGeometry(0.8, 0.8); p1.translate(0, 0.4, 0);
+    const p2 = p1.clone(); p2.rotateY(Math.PI / 2);
+    const merged = new THREE.BufferGeometry();
+    const pos = new Float32Array([...p1.attributes.position.array, ...p2.attributes.position.array]);
+    const uv = new Float32Array([...p1.attributes.uv.array, ...p2.attributes.uv.array]);
+    const nor = new Float32Array([...p1.attributes.normal.array, ...p2.attributes.normal.array]);
+    const idx = [...p1.index.array, ...Array.from(p2.index.array, (v) => v + 4)];
+    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    merged.setIndex(idx);
+
+    const mat = new THREE.MeshStandardMaterial({ map: tuftTex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, emissive: 0x8d84b8, emissiveMap: tuftTex, emissiveIntensity: 0.55 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uniTime;
       sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
         '#include <begin_vertex>\n vec3 ip = vec3(instanceMatrix[3][0], 0.0, instanceMatrix[3][2]);\n' +
-        ' float w = sin(uTime * 1.6 + ip.x * 0.35 + ip.z * 0.25) * 0.5 + sin(uTime * 2.7 + ip.x * 0.9) * 0.2;\n' +
-        ' transformed.x += w * position.y * 0.35; transformed.z += w * position.y * 0.15;');
+        ' float w = sin(uTime * 1.3 + ip.x * 0.35 + ip.z * 0.25) * 0.5 + sin(uTime * 2.1 + ip.x * 0.8) * 0.15;\n' +
+        ' transformed.x += w * position.y * position.y * 0.5; transformed.z += w * position.y * position.y * 0.2;');
     };
-    const COUNT = 30000;
-    const mesh = new THREE.InstancedMesh(blade, mat, COUNT);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler();
-    const ca = lin(0xa898ee), cb = lin(0x7fb3a3), cc = lin(0xe0d4ff), col = new THREE.Color();
+    const COUNT = 7000;
+    const mesh = new THREE.InstancedMesh(merged, mat, COUNT);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pp = new THREE.Vector3(), e = new THREE.Euler();
+    const ca = lin(0xcdc2f2), cb = lin(0xa6d3c4), cc = lin(0xf0e9ff), col = new THREE.Color();
     let n = 0;
-    for (let tries = 0; tries < COUNT * 4 && n < COUNT; tries++) {
-      const x = (Math.random() - 0.5) * 80, z = (Math.random() - 0.5) * 80;
+    for (let tries = 0; tries < COUNT * 5 && n < COUNT; tries++) {
+      const x = (Math.random() - 0.5) * 78, z = (Math.random() - 0.5) * 78;
       const h = heightAt(x, z);
-      if (h < 0.55 || pathDist(x, z) < 1.3) continue;
-      p.set(x, h - 0.02, z);
-      e.set((Math.random() - 0.5) * 0.4, Math.random() * Math.PI, (Math.random() - 0.5) * 0.4);
+      if (h < 0.55 || pathDist(x, z) < 1.2) continue;
+      pp.set(x, h - 0.03, z);
+      e.set(0, Math.random() * Math.PI, 0);
       q.setFromEuler(e);
-      const k = 0.7 + Math.random() * 0.9;
-      s.set(k, k * (0.7 + Math.random() * 0.8), k);
-      m.compose(p, q, s);
+      const k = 0.55 + Math.random() * 0.8;
+      sc.set(k, k * (0.7 + Math.random() * 0.6), k);
+      m.compose(pp, q, sc);
       mesh.setMatrixAt(n, m);
-      col.copy(ca).lerp(cb, Math.random() * 0.6).lerp(cc, Math.random() * 0.35);
+      col.copy(ca).lerp(cb, Math.random() * 0.7).lerp(cc, Math.random() * 0.4);
       mesh.setColorAt(n, col);
       n++;
     }
