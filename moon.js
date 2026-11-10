@@ -112,46 +112,77 @@
     scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xfff7e0, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.85 })));
   })();
 
-  // ---- 달토끼 ----
-  function makeRabbit() {
-    const white = new THREE.MeshStandardMaterial({ color: 0xfffaf3, roughness: 0.95 });
-    const pink = new THREE.MeshStandardMaterial({ color: 0xffbcd3, roughness: 0.95 });
-    const dark = new THREE.MeshBasicMaterial({ color: 0x2a2350 });
-    const visual = new THREE.Group();
-    const add = (geo, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = visual) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z); m.scale.set(sx, sy, sz); parent.add(m); return m;
-    };
-    const sph = (r) => new THREE.SphereGeometry(r, 14, 10);
-    const body = new THREE.Group(); visual.add(body);
-    add(sph(0.42), white, 0, 0.42, 0, 1, 0.9, 1.15, body);
-    add(sph(0.14), white, 0, 0.47, -0.52, 1, 1, 1, body);                // 꼬리
-    add(sph(0.3), white, 0, 0.86, 0.3, 1, 1, 1, body);                   // 머리
-    const earL = new THREE.Group(), earR = new THREE.Group();
-    earL.position.set(-0.13, 1.1, 0.24); earR.position.set(0.13, 1.1, 0.24);
-    [earL, earR].forEach((e, i) => {
-      add(sph(0.13), white, 0, 0.3, 0, 0.7, 2.6, 0.5, e);
-      add(sph(0.08), pink, 0, 0.3, 0.04, 0.6, 2.3, 0.4, e);
-      e.rotation.z = i === 0 ? 0.18 : -0.18;
-      body.add(e);
-    });
-    add(sph(0.04), dark, -0.11, 0.9, 0.55, 1, 1, 1, body);
-    add(sph(0.04), dark, 0.11, 0.9, 0.55, 1, 1, 1, body);
-    add(sph(0.045), pink, 0, 0.82, 0.59, 1, 1, 1, body);
-    add(sph(0.07), pink, -0.22, 0.62, 0.45, 1, 1, 1, body);              // 볼터치
-    add(sph(0.07), pink, 0.22, 0.62, 0.45, 1, 1, 1, body);
-    add(sph(0.11), white, -0.2, 0.08, 0.28, 1, 0.7, 1.3, visual);        // 발
-    add(sph(0.11), white, 0.2, 0.08, 0.28, 1, 0.7, 1.3, visual);
-    visual.scale.setScalar(0.95);
+  // ---- 미니미 캐릭터 (코드로 그린 선명한 그림, 항상 화면을 바라봄) ----
+  function makeKid() {
+    const SIZE = 256;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = SIZE;
+    const g = cv.getContext('2d');
+    const tex = new THREE.CanvasTexture(cv);
+    tex.anisotropy = 4;
+
+    function blob(x, y, rx, ry, c0, c1, c2) {
+      const gr = g.createRadialGradient(x - rx * 0.3, y - ry * 0.4, rx * 0.1, x, y, Math.max(rx, ry) * 1.05);
+      gr.addColorStop(0, c0); gr.addColorStop(0.7, c1); gr.addColorStop(1, c2);
+      g.fillStyle = gr;
+      g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill();
+    }
+    function soft(x, y, r, color) {
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, color); gr.addColorStop(1, 'rgba(255,170,190,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    }
+
+    // phase: 걸음 위상, walking: 걷는 중, face: -1(왼쪽)~1(오른쪽), blink: 눈 감는 정도(0~1)
+    function draw(phase, walking, face, blink) {
+      g.clearRect(0, 0, SIZE, SIZE);
+      const sw = walking ? Math.sin(phase) : 0;
+      const bob = walking ? Math.abs(Math.sin(phase)) * 7 : Math.sin(phase * 0.5) * 1.5;
+      // 발밑 그림자
+      g.fillStyle = 'rgba(70,50,140,0.22)';
+      g.beginPath(); g.ellipse(128, 247, 40 - bob, 7, 0, 0, Math.PI * 2); g.fill();
+      // 발
+      blob(108 + sw * 8, 238 - Math.max(0, -sw) * 8, 17, 11, '#ffffff', '#f3f0fa', '#d9d3ec');
+      blob(148 - sw * 8, 238 - Math.max(0, sw) * 8, 17, 11, '#ffffff', '#f3f0fa', '#d9d3ec');
+      // 몸
+      blob(128, 207 - bob * 0.6, 30, 31, '#ffffff', '#f6f3fb', '#d9d3ec');
+      // 팔 (걸을 때 흔들림)
+      blob(93 - sw * 4, 200 - bob * 0.6 + sw * 6, 11, 17, '#ffffff', '#f3f0fa', '#d9d3ec');
+      blob(163 + sw * 4, 200 - bob * 0.6 - sw * 6, 11, 17, '#ffffff', '#f3f0fa', '#d9d3ec');
+      // 머리
+      const hy = 118 - bob;
+      blob(128, hy, 80, 76, '#ffffff', '#f7f4fc', '#d6cfea');
+      // 볼터치
+      soft(128 + face * 6 - 42, hy + 22, 17, 'rgba(255,160,185,0.75)');
+      soft(128 + face * 6 + 42, hy + 22, 17, 'rgba(255,160,185,0.75)');
+      // 눈 (바라보는 쪽으로 살짝 치우침)
+      const ex = face * 9, ey = hy + 6;
+      g.fillStyle = '#2b2550';
+      const ry = Math.max(0.5, 8.5 * (1 - blink));
+      g.beginPath(); g.ellipse(128 + ex - 25, ey, 7, ry, 0, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(128 + ex + 25, ey, 7, ry, 0, 0, Math.PI * 2); g.fill();
+      if (blink < 0.5) {
+        g.fillStyle = '#ffffff';
+        g.beginPath(); g.arc(128 + ex - 27, ey - 3, 2.2, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.arc(128 + ex + 23, ey - 3, 2.2, 0, Math.PI * 2); g.fill();
+      }
+      tex.needsUpdate = true;
+    }
+
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    const SC = 1.7;
+    sprite.scale.set(SC, SC, 1);
+    sprite.position.y = SC * (122 / SIZE) ;      // 발이 땅에 닿도록 위로 올림
     const outer = new THREE.Group();
     outer.matrixAutoUpdate = false;
-    outer.add(visual);
-    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-    hit.position.y = 0.7;
+    outer.add(sprite);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.95, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    hit.position.y = 0.85;
     outer.add(hit);
-    return { outer, visual, body, earL, earR, hit };
+    draw(0, false, 0, 0);
+    return { outer, hit, draw, state: { face: 0, wantFace: 0, blinkT: 3, blink: 0, acc: 0 } };
   }
-  const rabbit = makeRabbit();
+  const rabbit = makeKid();   // (이전 토끼 코드와 이름을 맞춰 둠)
   scene.add(rabbit.outer);
 
   const rb = {
@@ -229,7 +260,7 @@
     clearTimeout(bubbleTimer);
     bubbleTimer = setTimeout(() => { bubble.classList.remove('on'); bubbleFor = null; }, 2800);
   }
-  const rabbitLines = ['안녕! 오늘 밤도 별이 참 예쁘다', '같이 달 한 바퀴 돌아볼래?', '폴짝! 기분이 좋아', '소원은 따뜻한 마음으로 빌면 더 잘 닿아'];
+  const rabbitLines = ['안녕! 오늘 밤도 별이 참 예쁘다', '같이 달 한 바퀴 돌아볼래?', '조용한 밤이라 마음이 편안해', '소원은 따뜻한 마음으로 빌면 더 잘 닿아'];
   const fairyLines = ['소원 하나 들려줄래?', '반짝! 오늘도 소원들이 빛나고 있어', '나는 소원을 별에게 전해 주는 요정이야', '조용히 쉬었다 가도 괜찮아'];
   let rl = 0, fl = 0;
 
@@ -300,11 +331,22 @@
     rabbit.outer.matrix.copy(mat);
     rabbit.outer.matrixWorldNeedsUpdate = true;
     rabbit.outer.position.setFromMatrixPosition(mat);
-    // 숨쉬기와 귀 흔들기
-    const breathe = 1 + Math.sin(rb.phase * (walking ? 1 : 1.2)) * (walking ? 0.03 : 0.02);
-    rabbit.body.scale.set(1, breathe, 1);
-    rabbit.earL.rotation.x = Math.sin(rb.phase * 0.9) * (walking ? 0.25 : 0.08);
-    rabbit.earR.rotation.x = Math.sin(rb.phase * 0.9 + 1) * (walking ? 0.25 : 0.08);
+    // 화면 기준 걷는 방향으로 얼굴을 돌리고, 눈을 깜빡이며, 그림을 갱신
+    const st = rabbit.state;
+    if (walking) {
+      const p0 = rabbit.outer.position.clone().project(camera);
+      const p1 = rabbit.outer.position.clone().addScaledVector(rb.fwd, 0.6).project(camera);
+      const dx = (p1.x - p0.x) * innerWidth;
+      st.wantFace = THREE.MathUtils.clamp(dx / 25, -1, 1);
+    } else {
+      st.wantFace *= 0.9;
+    }
+    st.face += (st.wantFace - st.face) * Math.min(1, dt * 8);
+    st.blinkT -= dt;
+    if (st.blinkT < 0) { st.blink = 1; st.blinkT = 2.5 + rnd() * 3; }
+    if (st.blink > 0) st.blink = Math.max(0, st.blink - dt * 7);
+    st.acc += dt;
+    if (st.acc > 1 / 24) { st.acc = 0; rabbit.draw(rb.phase, walking, st.face, st.blink); }
   }
 
   function stepFairy(dt) {
@@ -348,7 +390,7 @@
 
   function updateBubble() {
     if (!bubbleFor) return;
-    const p = (bubbleFor === 'fairy' ? fairy.g.position : rabbit.outer.position.clone().addScaledVector(rb.dir, 1.9)).clone().project(camera);
+    const p = (bubbleFor === 'fairy' ? fairy.g.position : rabbit.outer.position.clone().addScaledVector(rb.dir, 2.3)).clone().project(camera);
     bubble.style.left = ((p.x * 0.5 + 0.5) * innerWidth) + 'px';
     bubble.style.top = ((-p.y * 0.5 + 0.5) * innerHeight - 8) + 'px';
   }
