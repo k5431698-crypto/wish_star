@@ -92,7 +92,7 @@ for sx in (-1, 1):
 # 소매와 합장한 손
 for sx in (-1, 1):
     s = sphere('sleeve', (sx * 0.135, -0.125, 0.335), (0.046, 0.046, 0.1), ROBE, rot=(math.radians(-50), math.radians(sx * 18), 0))
-sphere('hands', (0, -0.205, 0.365), (0.034, 0.04, 0.046), SKIN)
+# (가운데에 매달린 것처럼 보이던 손 모양은 뺌)
 # 고무신
 for sx in (-1, 1):
     sphere('shoe', (sx * 0.095, -0.04, 0.042), (0.068, 0.115, 0.05), SHOE)
