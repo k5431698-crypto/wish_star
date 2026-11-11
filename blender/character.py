@@ -6,7 +6,7 @@ import bpy, mathutils
 
 out = sys.argv[2]
 yaw = float(sys.argv[3]) if len(sys.argv) > 3 else 28.0
-style = sys.argv[4] if len(sys.argv) > 4 else 'monk'   # monk | bunny | star | cozy
+style = sys.argv[4] if len(sys.argv) > 4 else 'monk'   # monk | bunny | bunny_nohat | star | cozy
 res = int(sys.argv[5]) if len(sys.argv) > 5 else 900
 samples = int(sys.argv[6]) if len(sys.argv) > 6 else 96
 
@@ -26,7 +26,7 @@ def mat(name, rgb, rough=0.6, sss=0.0, emit=None):
     return m
 
 SKIN = mat('skin', (1.0, 0.84, 0.74), 0.55, sss=0.25)
-ROBE_COL = {'monk': (0.62, 0.64, 0.80), 'bunny': (0.95, 0.92, 0.90), 'star': (0.16, 0.18, 0.40), 'cozy': (0.93, 0.78, 0.80)}[style]
+ROBE_COL = {'monk': (0.62, 0.64, 0.80), 'bunny': (0.95, 0.92, 0.90), 'bunny_nohat': (0.95, 0.92, 0.90), 'star': (0.16, 0.18, 0.40), 'cozy': (0.93, 0.78, 0.80)}[style]
 ROBE = mat('robe', ROBE_COL, 0.85)
 ROBE2 = mat('robe2', tuple(c * 0.8 for c in ROBE_COL), 0.85)
 BELT = mat('belt', (0.80, 0.60, 0.42), 0.7)
@@ -83,11 +83,7 @@ bpy.ops.object.shade_smooth()
 # 허리띠
 bpy.ops.mesh.primitive_torus_add(major_radius=0.205, minor_radius=0.017, major_segments=64, minor_segments=16, location=(0, 0, 0.245))
 belt = bpy.context.object; belt.scale = (1, 0.88, 1); belt.data.materials.append(BELT); bpy.ops.object.shade_smooth()
-# 옷깃 (브이)
-for sx in (-1, 1):
-    bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=0.012, depth=0.17, location=(sx * 0.05, -0.17, 0.425))
-    c = bpy.context.object; c.rotation_euler = (0, math.radians(sx * 22), 0); c.data.materials.append(ROBE2); bpy.ops.object.shade_smooth()
-    c.rotation_euler = (math.radians(-6), math.radians(sx * 24), 0)
+# (옷깃의 막대 모양은 목걸이 줄처럼 보여서 뺌)
 
 # 소매와 합장한 손
 for sx in (-1, 1):
@@ -116,6 +112,8 @@ if style == 'bunny':
         sphere('ear', (sx * 0.1, 0.0, 1.02), (0.05, 0.03, 0.2), HOOD, rot=(0, math.radians(sx * 12), 0))
         sphere('earIn', (sx * 0.1, -0.022, 1.02), (0.03, 0.015, 0.15), PINK, rot=(0, math.radians(sx * 12), 0))
     sphere('tail', (0, 0.2, 0.12), (0.07, 0.07, 0.07), HOOD)
+elif style == 'bunny_nohat':
+    sphere('tail', (0, 0.2, 0.12), (0.07, 0.07, 0.07), mat('hood', (0.98, 0.96, 0.95), 0.9))
 elif style == 'star':
     GOLD = mat('gold', (1.0, 0.8, 0.3), 0.35)
     CAPE = mat('cape', (0.28, 0.25, 0.55), 0.8)
