@@ -26,12 +26,12 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
+  renderer.toneMappingExposure = 0.95;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  const HORIZON = new THREE.Color(0xc9a9d6);
+  const HORIZON = new THREE.Color(0xe8bcbc);
   scene.fog = new THREE.FogExp2(HORIZON, 0.0065);
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
 
@@ -86,7 +86,7 @@
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: {
-      top: { value: lin(0x16163f) }, mid: { value: lin(0x4b3f8c) }, bottom: { value: lin(0xe3b2c8) },
+      top: { value: lin(0x221c48) }, mid: { value: lin(0x7a5894) }, bottom: { value: lin(0xf6c6ae) },
     },
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bottom; varying vec3 vP;' +
@@ -181,8 +181,8 @@
   })();
 
   // ---- 빛 ----
-  scene.add(new THREE.HemisphereLight(0xb7b0ff, 0x3a2f55, 0.75));
-  const moonLight = new THREE.DirectionalLight(0xf3e8ff, 1.0);
+  scene.add(new THREE.HemisphereLight(0xffdcc8, 0x5a4058, 0.8));
+  const moonLight = new THREE.DirectionalLight(0xffe4c4, 1.0);
   moonLight.castShadow = true;
   moonLight.shadow.mapSize.set(1024, 1024);
   const sc = moonLight.shadow.camera;
@@ -219,8 +219,8 @@
       textureWidth: 512, textureHeight: 512,
       waterNormals: makeWaterNormals(),
       sunDirection: moonDir.clone(),
-      sunColor: 0xfff0d8,
-      waterColor: 0x2b3a78,
+      sunColor: 0xffd9a8,
+      waterColor: 0x3b3a7a,
       distortionScale: 2.2,
       fog: true,
     });
@@ -240,7 +240,7 @@
   ISL.scene.traverse((o) => {
     if (o.isMesh) {
       o.castShadow = true; o.receiveShadow = true;
-      if (!terrain && (o.name.startsWith('Terrain') || (o.parent && o.parent.name.startsWith('Terrain')))) { terrain = o; o.castShadow = false; }
+      if (!terrain && (o.name.startsWith('Terrain') || (o.parent && o.parent.name.startsWith('Terrain')))) { terrain = o; o.castShadow = false; o.material.color.set(0xffe6d8); }   // 땅을 따뜻한 빛으로
       if (/LanternGlow|LighthouseLamp/.test(o.name) || (o.parent && /LanternGlow|LighthouseLamp/.test(o.parent.name))) glowSpots.push(o);
     }
   });
@@ -248,7 +248,7 @@
   glowSpots.forEach((o) => {
     const p = new THREE.Vector3(); o.getWorldPosition(p);
     const big = /Lighthouse/.test(o.name + (o.parent ? o.parent.name : ''));
-    const g = glowSprite(0xffe2a0, big ? 6 : 1.6, big ? 0.85 : 0.7); g.position.copy(p); scene.add(g);
+    const g = glowSprite(0xffcf8a, big ? 6 : 2.2, big ? 0.85 : 0.8); g.position.copy(p); scene.add(g);
     if (big) { const pl = new THREE.PointLight(0xffd99a, 1.4, 16, 2); pl.position.copy(p); scene.add(pl); }
   });
 
@@ -261,12 +261,12 @@
     const g = cv.getContext('2d');
     let seed = 7;
     const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 22; i++) {
-      const bx = 34 + r() * 60, tx = bx + (r() - 0.5) * 56, ty = 12 + r() * 60;
+    for (let i = 0; i < 34; i++) {
+      const bx = 30 + r() * 68, tx = bx + (r() - 0.5) * 70, ty = 40 + r() * 55;
       const cx = bx + (tx - bx) * 0.3 + (r() - 0.5) * 12, cy = 126 - (126 - ty) * 0.6;
-      const w = 2.2 + r() * 2.2;
+      const w = 1.7 + r() * 1.4;
       const gr = g.createLinearGradient(0, 126, 0, ty);
-      gr.addColorStop(0, 'rgb(205,205,215)'); gr.addColorStop(1, 'rgb(255,255,255)');
+      gr.addColorStop(0, 'rgb(235,230,232)'); gr.addColorStop(1, 'rgb(255,255,255)');
       g.fillStyle = gr;
       g.beginPath();
       g.moveTo(bx - w, 127);
@@ -290,7 +290,7 @@
     merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     merged.setIndex(idx);
 
-    const mat = new THREE.MeshStandardMaterial({ map: tuftTex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, emissive: 0x8d84b8, emissiveMap: tuftTex, emissiveIntensity: 0.55 });
+    const mat = new THREE.MeshStandardMaterial({ map: tuftTex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, emissive: 0xa89098, emissiveMap: tuftTex, emissiveIntensity: 0.6 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uniTime;
       sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
@@ -298,10 +298,10 @@
         ' float w = sin(uTime * 1.3 + ip.x * 0.35 + ip.z * 0.25) * 0.5 + sin(uTime * 2.1 + ip.x * 0.8) * 0.15;\n' +
         ' transformed.x += w * position.y * position.y * 0.5; transformed.z += w * position.y * position.y * 0.2;');
     };
-    const COUNT = 7000;
+    const COUNT = 11000;
     const mesh = new THREE.InstancedMesh(merged, mat, COUNT);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pp = new THREE.Vector3(), e = new THREE.Euler();
-    const ca = lin(0xcdc2f2), cb = lin(0xa6d3c4), cc = lin(0xf0e9ff), col = new THREE.Color();
+    const ca = lin(0xd9c9f2), cb = lin(0xbfdcae), cc = lin(0xfbeedd), col = new THREE.Color();
     let n = 0;
     for (let tries = 0; tries < COUNT * 5 && n < COUNT; tries++) {
       const x = (Math.random() - 0.5) * 78, z = (Math.random() - 0.5) * 78;
@@ -310,7 +310,7 @@
       pp.set(x, h - 0.03, z);
       e.set(0, Math.random() * Math.PI, 0);
       q.setFromEuler(e);
-      const k = 0.55 + Math.random() * 0.8;
+      const k = 0.4 + Math.random() * 0.45;
       sc.set(k, k * (0.7 + Math.random() * 0.6), k);
       m.compose(pp, q, sc);
       mesh.setMatrixAt(n, m);
