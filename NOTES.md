@@ -51,7 +51,8 @@
 - **결정(2026-11-15)**: 꾸미기는 "맵에서 무작위로 줍기 + 입기 + 편지 친구끼리 선물하기"(자유 교환은 사기·현금거래 위험으로 보류). 유료 아이템은 뽑기가 아니라 보고 고르는 방식(확률형 아이템 규제 피함). 캐릭터는 기본 몸(모자 없음) + 첫 아이템으로 토끼 후드를 씌운 상태로 시작
 - **진행 순서(사용자 결정)**: Blender로 아이템과 맵을 먼저 모델링 → 그다음 서버 함수·화면
 - [x] Blender 캐릭터 + 아이템 6종 모델링: `blender/build_models.py` → `assets/models/character.glb`(약 0.7MB). 아이템: 토끼 후드, 비니, 별 머리핀, 우편 가방, 목도리, 꽃 화관(이름은 `Item_...`, 사이트에서 보였다 숨겼다). 미리보기 `assets/items-preview.png`(0 기본 ~ 6 꽃 화관)
-- [ ] Blender 맵 모델링(섬 지형, 산책길, 등대, 나무, 우체통, 바위, 작은 부두 등) → glb로 내보내 `island.html`에 합치기
+- [x] Blender 맵 모델링: `blender/build_map.py` → `assets/models/island.glb`(약 1.7MB) + `assets/models/island-map.json`(걷기용 높이 지도, 막힌 곳, 시작 위치, 장소 좌표). 섬 지형(풀·모래·길 색), 산책길(시작→등대, 갈림길→부두), 등대, 나무 34그루(둥근 나무·침엽수·벚꽃), 바위 18개, 우체통(시작 지점 옆, 고민 넣는 곳), 길가 등불 7개, 등대 앞 벤치, 부두와 종이배, 작은 섬 위 의자. 미리보기 `assets/map-aerial-preview.jpg`, `assets/map-ground-preview.jpg`
+- [ ] `island.html`에 합치기: 코드로 만든 지형·나무·등대를 island.glb로 교체, 캐릭터를 character.glb(토끼 후드)로 교체, 걷기는 island-map.json 높이 지도 사용
 
 ## 정해진 결정 사항
 - 모바일 웹서비스, 폰 세로 화면 기준, 터치 조작
