@@ -52,7 +52,8 @@
 - **진행 순서(사용자 결정)**: Blender로 아이템과 맵을 먼저 모델링 → 그다음 서버 함수·화면
 - [x] Blender 캐릭터 + 아이템 6종 모델링: `blender/build_models.py` → `assets/models/character.glb`(약 0.7MB). 아이템: 토끼 후드, 비니, 별 머리핀, 우편 가방, 목도리, 꽃 화관(이름은 `Item_...`, 사이트에서 보였다 숨겼다). 미리보기 `assets/items-preview.png`(0 기본 ~ 6 꽃 화관)
 - [x] Blender 맵 모델링: `blender/build_map.py` → `assets/models/island.glb`(약 1.7MB) + `assets/models/island-map.json`(걷기용 높이 지도, 막힌 곳, 시작 위치, 장소 좌표). 섬 지형(풀·모래·길 색), 산책길(시작→등대, 갈림길→부두), 등대, 나무 34그루(둥근 나무·침엽수·벚꽃), 바위 18개, 우체통(시작 지점 옆, 고민 넣는 곳), 길가 등불 7개, 등대 앞 벤치, 부두와 종이배, 작은 섬 위 의자. 미리보기 `assets/map-aerial-preview.jpg`, `assets/map-ground-preview.jpg`
-- [ ] `island.html`에 합치기: 코드로 만든 지형·나무·등대를 island.glb로 교체, 캐릭터를 character.glb(토끼 후드)로 교체, 걷기는 island-map.json 높이 지도 사용
+- [x] Blender 맵·캐릭터를 사이트에 합침: 새 페이지 `map.html` + `map.js`(island.js를 바탕으로, 지형·나무·등대를 island.glb로, 캐릭터를 character.glb(토끼 후드 착용)로 교체, 걷기는 island-map.json 높이 지도와 막힌 곳 사용, 걸을 때 팔다리·머리 움직임). GLTFLoader는 jsdelivr에서 불러옴. 기존 `island.html`은 그대로 둠
+- [ ] 다음: 화면 밝기·색 다듬기, 우체통 누르면 고민 쓰기 연결, 서버 함수(남의 고민 받기·답장·별·신고)
 
 ## 정해진 결정 사항
 - 모바일 웹서비스, 폰 세로 화면 기준, 터치 조작
