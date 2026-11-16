@@ -154,38 +154,94 @@
     scene.add(halo);
   })();
 
-  // 구름 (파스텔빛 뭉게구름, 수평선 근처)
+  // ---- 큰 뭉게구름: 작은 구름 덩어리를 수천 장 쌓아 올린 뭉게구름 (노을빛을 받는 쪽은 분홍·금빛, 그늘은 푸른 보라) ----
+  const cloudDrift = { value: 0 };
   (function clouds() {
-    function cloudTex(seed) {
-      const W = 1024, Hh = 512;
-      const c = document.createElement('canvas');
-      c.width = W; c.height = Hh;
-      const g = c.getContext('2d');
-      let sd = seed;
-      const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-      for (let i = 0; i < 70; i++) {
-        const x = 260 + r() * 504, y = 270 + (r() - 0.5) * 120 - Math.sin(((x - 260) / 504) * Math.PI) * 70;
-        const rad = 45 + r() * 90;
-        const gr = g.createRadialGradient(x, y - rad * 0.25, 0, x, y, rad);
-        gr.addColorStop(0, 'rgba(255,244,240,0.5)'); gr.addColorStop(0.55, 'rgba(240,215,235,0.22)'); gr.addColorStop(1, 'rgba(210,190,235,0)');
-        g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    let sd = 4242;
+    const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647, rr = (a, b) => a + (b - a) * R();
+    // 구름 덩어리 그림: 부드러운 가장자리 + 안쪽에 몽글몽글한 명암
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const g = cv.getContext('2d');
+    const gr = g.createRadialGradient(128, 128, 10, 128, 128, 126);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.92)'); gr.addColorStop(0.82, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 26; i++) {            // 안쪽의 작은 몽글이 (살짝 어둡게, 살짝 밝게)
+      const a = R() * Math.PI * 2, d = R() * 70, x = 128 + Math.cos(a) * d, y = 128 + Math.sin(a) * d * 0.9, r = 20 + R() * 34;
+      const rg = g.createRadialGradient(x - r * 0.25, y - r * 0.3, 0, x, y, r);
+      const dark = R() < 0.5;
+      rg.addColorStop(0, dark ? 'rgba(170,160,200,0.18)' : 'rgba(255,255,255,0.22)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
+
+    const pos = [], size = [], col = [], rot = [], drift = [];
+    const sun = new THREE.Vector3(-0.35, 0.0, -1).normalize();      // 노을이 있는 방향
+    const cShadow = new THREE.Color(0xa89ad8).convertSRGBToLinear(), cMid = new THREE.Color(0xffd0cc).convertSRGBToLinear(), cLit = new THREE.Color(0xfff0d0).convertSRGBToLinear();
+    function addCloud(az, dist, base, width, height, speed, seed) {
+      const cx = Math.sin(az) * dist, cz = -Math.cos(az) * dist;
+      const out = new THREE.Vector3(Math.sin(az), 0, -Math.cos(az)), side = new THREE.Vector3(Math.cos(az), 0, Math.sin(az));
+      const puffs = [];
+      function add(p, r, depth) {
+        puffs.push({ p, r });
+        if (depth >= 3) return;
+        const k = depth === 0 ? 7 : depth === 1 ? 5 : 4;
+        for (let i = 0; i < k; i++) {
+          const dir = new THREE.Vector3(rr(-1, 1), rr(0.05, 1), rr(-1, 1)).normalize();
+          add(p.clone().addScaledVector(dir, r * rr(0.55, 0.85)), r * rr(0.5, 0.68), depth + 1);
+        }
       }
-      // 가장자리를 부드럽게 지워서 그림 경계가 보이지 않게 함
-      g.globalCompositeOperation = 'destination-in';
-      const m = g.createRadialGradient(W / 2, Hh / 2 + 20, 20, W / 2, Hh / 2 + 20, W * 0.48);
-      m.addColorStop(0, 'rgba(0,0,0,1)'); m.addColorStop(0.55, 'rgba(0,0,0,0.9)'); m.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = m; g.fillRect(0, 0, W, Hh);
-      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
-      t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
-      return t;
+      // 아래는 넓고 평평하게, 위로 갈수록 좁게 솟는 여러 개의 탑
+      const towers = 4 + Math.floor(R() * 3);
+      for (let t = 0; t < towers; t++) {
+        const f = (t / (towers - 1)) - 0.5, h = height * rr(0.45, 1.0) * (1 - Math.abs(f) * 0.9);
+        const bx = f * width, r0 = width * rr(0.11, 0.17);
+        for (let y = 0; y < h; y += r0 * 0.9) {
+          const k = 1 - y / (h + 1), rad = r0 * (0.55 + 0.75 * k);
+          add(new THREE.Vector3(bx + rr(-0.15, 0.15) * r0, base + y, rr(-0.35, 0.35) * r0), rad, 1);
+        }
+      }
+      puffs.forEach(({ p, r }) => {
+        const w = new THREE.Vector3().set(cx, 0, cz).addScaledVector(side, p.x).addScaledVector(out, p.z);
+        w.y = p.y;
+        const up = Math.min(1, Math.max(0, (p.y - base) / height));
+        const lit = Math.min(1, up * 1.15 + 0.12 + R() * 0.15);
+        const c = new THREE.Color().copy(cShadow).lerp(cMid, Math.min(1, lit * 1.5)).lerp(cLit, Math.max(0, lit - 0.55) * 1.6);
+        pos.push(w.x, w.y, w.z); size.push(r * 2.3); col.push(c.r, c.g, c.b); rot.push(R() * 6.28); drift.push(speed);
+      });
     }
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + Math.random() * 0.4;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex(1000 + i * 77), transparent: true, depthWrite: false, fog: false, opacity: 0.8 }));
-      sp.scale.set(520, 260, 1);
-      sp.position.set(Math.cos(a) * 700, 60 + Math.random() * 60, Math.sin(a) * 700);
-      scene.add(sp);
-    }
+    // 노을 쪽에 가장 큰 구름, 둘레에 크기가 다른 구름들
+    addCloud(-0.25, 560, 30, 560, 520, 0.25, 1);
+    addCloud(0.85, 640, 10, 460, 360, 0.18, 2);
+    addCloud(-1.15, 620, 20, 480, 380, 0.22, 3);
+    addCloud(2.4, 700, 30, 500, 420, 0.2, 4);
+    addCloud(-2.4, 680, 10, 420, 320, 0.16, 5);
+    addCloud(1.7, 740, 50, 380, 230, 0.14, 6);
+    addCloud(3.5, 660, 20, 440, 340, 0.17, 7);
+
+    // 멀리 있는 것부터 그리기 (섬 중심 기준)
+    const idx = pos.length / 3, order = Array.from({ length: idx }, (_, i) => i).sort((a, b) => Math.hypot(pos[b * 3], pos[b * 3 + 2]) - Math.hypot(pos[a * 3], pos[a * 3 + 2]));
+    const geo = new THREE.InstancedBufferGeometry();
+    const base = new THREE.PlaneGeometry(1, 1);
+    geo.index = base.index; geo.setAttribute('position', base.attributes.position); geo.setAttribute('uv', base.attributes.uv);
+    const pick = (arr, n) => { const o = new Float32Array(idx * n); order.forEach((src, i) => { for (let k = 0; k < n; k++) o[i * n + k] = arr[src * n + k]; }); return o; };
+    geo.setAttribute('aPos', new THREE.InstancedBufferAttribute(pick(pos, 3), 3));
+    geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(pick(size, 1), 1));
+    geo.setAttribute('aCol', new THREE.InstancedBufferAttribute(pick(col, 3), 3));
+    geo.setAttribute('aRot', new THREE.InstancedBufferAttribute(pick(rot, 1), 1));
+    geo.setAttribute('aDrift', new THREE.InstancedBufferAttribute(pick(drift, 1), 1));
+    geo.instanceCount = idx;
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, fog: false,
+      uniforms: { map: { value: tex }, uTime: cloudDrift },
+      vertexShader: 'attribute vec3 aPos; attribute float aSize; attribute vec3 aCol; attribute float aRot; attribute float aDrift; uniform float uTime; varying vec2 vUv; varying vec3 vCol;\n' +
+        'void main(){ vUv = uv; vCol = aCol; vec3 c = aPos; c.x += uTime * aDrift; vec4 mv = modelViewMatrix * vec4(c,1.0);\n' +
+        ' float cs = cos(aRot), sn = sin(aRot); vec2 p = position.xy * aSize; mv.xy += vec2(p.x*cs - p.y*sn, p.x*sn + p.y*cs); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform sampler2D map; varying vec2 vUv; varying vec3 vCol;\n' +
+        'void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(vCol, t.a * 0.95); }',
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false; mesh.renderOrder = -1;
+    scene.add(mesh);
   })();
 
   // ---- 빛 ----
@@ -294,20 +350,38 @@
       g.fillStyle = gr; g.beginPath(); g.moveTo(3, 0);
       g.bezierCurveTo(len * 0.3, -w, len * 0.78, -w * 0.8, len, 0);
       g.bezierCurveTo(len * 0.78, w * 0.8, len * 0.3, w, 3, 0); g.fill();
-      g.strokeStyle = 'rgba(110,110,110,0.7)'; g.lineWidth = 1.1;
+      g.strokeStyle = 'rgba(170,170,170,0.45)'; g.lineWidth = 0.9;
       g.beginPath(); g.moveTo(3, 0); g.lineTo(len * 0.9, 0); g.stroke();
       g.restore();
     }
     const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
   })();
-  const leafGeo = new THREE.PlaneGeometry(1, 1);
-  leafGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));   // 위를 보게 해서 부드러운 빛
-  const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9, emissive: 0x3a2a30, emissiveMap: leafTex, emissiveIntensity: 0.35 });
+  const leafGeo = new THREE.PlaneGeometry(1, 1, 4, 4);      // 칸을 나눠서 잎이 살짝 휘게
+  const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75, emissive: 0x4a3036, emissiveMap: leafTex, emissiveIntensity: 0.28 });
   leafMat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uniTime;
-    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\n vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\n' +
-      ' transformed.x += sin(uTime * 1.5 + ip.x * 1.7 + ip.z) * 0.03; transformed.y += cos(uTime * 1.2 + ip.z * 1.3 + ip.y) * 0.02;');
+    // 잎마다 '나무 바깥쪽'을 향하는 부드러운 법선(aN)을 써서, 종이 조각이 아니라 둥근 수관 덩어리처럼 빛을 받게 함
+    sh.vertexShader = 'uniform float uTime; attribute vec3 aN; varying float vWarm;\n' + sh.vertexShader
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n' +
+        ' transformed.z += (position.x * position.x + position.y * position.y) * 0.55 - 0.1;\n')             // 잎을 숟가락처럼 오목하게 휘게
+      .replace('#include <defaultnormal_vertex>', '#include <defaultnormal_vertex>\n transformedNormal = normalize(normalMatrix * aN);')
+      .replace('#include <project_vertex>',
+        ' vec4 mvPosition = vec4(transformed, 1.0);\n' +
+        ' vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\n' +
+        ' mvPosition = instanceMatrix * mvPosition;\n' +
+        ' vec3 wp = (modelMatrix * vec4(ip, 1.0)).xyz;\n' +
+        // 바람: 일정하지 않고 큰 돌풍이 지나가듯 세졌다 약해졌다 함 (장소와 시간에 따라 다르게)
+        ' float gA = sin(uTime * 0.31 - wp.x * 0.05 - wp.z * 0.035) * 0.5 + 0.5;\n' +
+        ' float gB = sin(uTime * 0.17 + wp.z * 0.04 - wp.x * 0.02 + 1.7) * 0.5 + 0.5;\n' +
+        ' float gust = smoothstep(0.15, 0.95, gA * gB * 1.5 + 0.12);\n' +
+        ' float ph = ip.x * 3.1 + ip.y * 2.3 + ip.z * 2.7;\n' +
+        ' float hh = clamp(ip.y / 5.0, 0.0, 1.0) * 0.8 + 0.2;\n' +
+        ' float f1 = sin(uTime * (1.3 + gust * 1.6) + ph), f2 = sin(uTime * (2.9 + gust * 2.4) + ph * 1.7);\n' +
+        ' vec3 sway = vec3(f1 * 0.7 + f2 * 0.3, f2 * 0.25, cos(uTime * (1.1 + gust) + ph) * 0.5) * (0.035 + 0.17 * gust) * hh;\n' +
+        ' mvPosition.xyz += sway;\n' +
+        ' mvPosition = modelViewMatrix * mvPosition;\n' +
+        ' gl_Position = projectionMatrix * mvPosition;\n');
   };
   const barkMat = new THREE.MeshStandardMaterial({ color: 0x4a3830, roughness: 1 });
   const blobTex = (() => {
@@ -318,15 +392,15 @@
 
   // 종류: crown=수관 모양, h=키, tr=줄기 굵기, spread=가지 뻗음, cards=잎 장수, card=잎 크기, cols=잎 색
   const SPECIES = {
-    oak:    { crown: 'round', h: [4.6, 5.8], tr: 0.30, spread: 1.9, cards: 910, card: 0.78, cols: [0x7fae62, 0x6a9c52, 0x93bd70] },
-    maple:  { crown: 'round', h: [5.2, 6.4], tr: 0.34, spread: 2.1, cards: 988, card: 0.78, cols: [0xd9482f, 0xe5653a, 0xc43a2c] },
-    golden: { crown: 'oval',  h: [5.4, 6.8], tr: 0.26, spread: 1.5, cards: 832, card: 0.74, cols: [0xe8b84a, 0xf2cb62, 0xd9a03a] },
-    violet: { crown: 'round', h: [4.4, 5.4], tr: 0.28, spread: 1.8, cards: 910, card: 0.76, cols: [0x4d4a8a, 0x5d5aa0, 0x403e74] },
-    cherry: { crown: 'round', h: [3.8, 4.8], tr: 0.24, spread: 2.0, cards: 832, card: 0.76, cols: [0xf7b6cf, 0xf1a0c1, 0xfbd2e1] },
-    willow: { crown: 'weeping', h: [4.2, 5.2], tr: 0.28, spread: 1.7, cards: 910, card: 0.62, cols: [0x9cc28a, 0x86b078, 0xb4d19a] },
-    pine:   { crown: 'cone',  h: [5.6, 7.2], tr: 0.22, spread: 1.7, cards: 728, card: 0.62, cols: [0x3f6f58, 0x4b7d63, 0x35604c] },
-    bush:   { crown: 'bush',  h: [0.8, 1.2], tr: 0, spread: 0.7, cards: 130, card: 0.52, cols: [0x7fae62, 0x6a9c52, 0x93bd70] },
-    bushBerry: { crown: 'bush', h: [0.8, 1.2], tr: 0, spread: 0.7, cards: 130, card: 0.52, cols: [0x6f9c58, 0x5f8c4c, 0x86b068], berry: 0xd94a5a },
+    oak:    { crown: 'round', h: [4.6, 5.8], tr: 0.30, spread: 1.9, cards: 1228, card: 0.61, cols: [0x7fae62, 0x6a9c52, 0x93bd70] },
+    maple:  { crown: 'round', h: [5.2, 6.4], tr: 0.34, spread: 2.1, cards: 1333, card: 0.61, cols: [0xd9482f, 0xe5653a, 0xc43a2c] },
+    golden: { crown: 'oval',  h: [5.4, 6.8], tr: 0.26, spread: 1.5, cards: 1123, card: 0.58, cols: [0xe8b84a, 0xf2cb62, 0xd9a03a] },
+    violet: { crown: 'round', h: [4.4, 5.4], tr: 0.28, spread: 1.8, cards: 1228, card: 0.59, cols: [0x4d4a8a, 0x5d5aa0, 0x403e74] },
+    cherry: { crown: 'round', h: [3.8, 4.8], tr: 0.24, spread: 2.0, cards: 1123, card: 0.59, cols: [0xf7b6cf, 0xf1a0c1, 0xfbd2e1] },
+    willow: { crown: 'weeping', h: [4.2, 5.2], tr: 0.28, spread: 1.7, cards: 1228, card: 0.48, cols: [0x9cc28a, 0x86b078, 0xb4d19a] },
+    pine:   { crown: 'cone',  h: [5.6, 7.2], tr: 0.22, spread: 1.7, cards: 982, card: 0.48, cols: [0x3f6f58, 0x4b7d63, 0x35604c] },
+    bush:   { crown: 'bush',  h: [0.8, 1.2], tr: 0, spread: 0.7, cards: 175, card: 0.41, cols: [0x7fae62, 0x6a9c52, 0x93bd70] },
+    bushBerry: { crown: 'bush', h: [0.8, 1.2], tr: 0, spread: 0.7, cards: 175, card: 0.41, cols: [0x6f9c58, 0x5f8c4c, 0x86b068], berry: 0xd94a5a },
   };
 
   function mergeGeos(list) {
@@ -443,7 +517,13 @@
       trunk.castShadow = true; group.add(trunk);
     }
     // 잎: 한 번에 그리는 수천 장의 잎
-    const N = Math.floor(sp.cards * rr(0.85, 1.1)), inst = new THREE.InstancedMesh(leafGeo, leafMat, N);
+    const N = Math.floor(sp.cards * rr(0.85, 1.1));
+    const leafG = leafGeo.clone();
+    const nArr = new Float32Array(N * 3);
+    leafG.setAttribute('aN', new THREE.InstancedBufferAttribute(nArr, 3));
+    const inst = new THREE.InstancedMesh(leafG, leafMat, N);
+    const center = new THREE.Vector3(); anchors.forEach((a) => center.add(a.p)); center.multiplyScalar(1 / Math.max(1, anchors.length));
+    const nv = new THREE.Vector3();
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), pp = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
     let minY = 1e9, maxY = -1e9; anchors.forEach((a) => { minY = Math.min(minY, a.p.y); maxY = Math.max(maxY, a.p.y); });
     const pal = sp.cols.map((h) => new THREE.Color(h).convertSRGBToLinear());
@@ -455,7 +535,10 @@
       if (an.hang) { pp.y -= R() * an.hang; sc.set(sz * 0.7, sz * 1.4, 1); e.set(rr(-0.4, 0.4), R() * 6.28, rr(-0.3, 0.3)); }
       else { sc.set(sz, sz, 1); e.set(rr(-1.6, 1.6), R() * 6.28, rr(-1.6, 1.6)); }
       q.setFromEuler(e); m.compose(pp, q, sc); inst.setMatrixAt(i, m);
-      const shade = 0.72 + 0.33 * ((pp.y - minY) / Math.max(0.5, maxY - minY)) + rr(-0.08, 0.08);
+      nv.copy(pp).sub(center); nv.y += 0.35 * Math.max(0.5, (maxY - minY)); nv.normalize();      // 수관 중심에서 바깥쪽 + 살짝 위
+      nArr[i * 3] = nv.x; nArr[i * 3 + 1] = nv.y; nArr[i * 3 + 2] = nv.z;
+      const inside = Math.min(1, nv.length() > 0 ? Math.hypot(pp.x - center.x, pp.z - center.z) / Math.max(0.5, sp.spread * 1.2) : 1);   // 안쪽은 어둡게(그늘)
+      const shade = (0.55 + 0.5 * inside) * (0.78 + 0.3 * ((pp.y - minY) / Math.max(0.5, maxY - minY))) + rr(-0.1, 0.1);
       col.copy(pal[Math.floor(R() * pal.length)]).multiplyScalar(shade);
       if (sp.berry && R() < 0.1) col.set(sp.berry).convertSRGBToLinear();
       inst.setColorAt(i, col);
@@ -618,6 +701,10 @@
   const fairyLines = ['소원 하나 들려줄래?', '반짝! 오늘도 소원들이 빛나고 있어', '나는 소원을 별에게 전해 주는 요정이야'];
   let kl = 0, fl = 0;
 
+  // ---- 촬영 모드: 주소 끝에 ?cine=1 을 붙이면 글자가 사라지고 카메라가 천천히 돌며 움직임 (인스타 영상 화면 녹화용) ----
+  const CINE = /[?&]cine=1/.test(location.search);
+  if (CINE) { ['hint'].forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; }); const b = document.querySelector('.back'); if (b) b.style.display = 'none'; }
+
   // ---- 카메라 조작: 탭은 걷기, 옆으로 밀기는 둘러보기 ----
   let camYaw = 0, camPitch = 0.42, camDist = 8;
   const camPos = new THREE.Vector3();
@@ -715,7 +802,7 @@
   }
 
   function step(dt, time) {
-    uniTime.value = time;
+    uniTime.value = time; cloudDrift.value = time;
     if (water) water.material.uniforms.time.value = time * 0.6;
 
     // 걷기
@@ -756,6 +843,7 @@
     kid.hit.position.set(me.pos.x, me.pos.y + 0.6, me.pos.z);
 
     // 카메라: 캐릭터 뒤쪽 위에서 따라감 (밀어서 돌릴 수 있음)
+    if (CINE && !down) { camYaw += dt * 0.07; camDist = 5.5 + Math.sin(time * 0.1) * 2.2; camPitch = 0.3 + Math.sin(time * 0.07) * 0.08; }
     const look = tmp.set(me.pos.x, me.pos.y + 0.9, me.pos.z);
     const want = new THREE.Vector3(
       look.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist,
