@@ -26,7 +26,7 @@
 - 생성한 소리(wav/mp3)와 자막은 `instagram/assets/`, 기획 문서는 `instagram/plan/`에 둠. 큰 파일(영상)은 저장소에 올리지 않음
 
 ## 첫 할 일 (순서대로, 하나씩 결과 보여 주고 확인)
-1. [ ] 계정 컨셉·영상 형식을 한 장으로 정리(`instagram/plan/concept.md`), 계정 이름 후보 5개
+1. [x] 계정 컨셉·영상 형식을 한 장으로 정리(`instagram/plan/concept.md`), 계정 이름 후보 5개
 2. [ ] 첫 10편 기획표(`instagram/plan/first-10.md`): 편마다 장면(촬영할 위치·카메라), 자막 문구, 캡션, 해시태그, 소리 종류
 3. [ ] **분위기 소리 합성**: 바람(잔잔/돌풍), 모닥불 타는 소리, 파도, 밤벌레. 직접 합성(numpy 등)해서 wav/mp3로 `instagram/assets/sound/`에. 루프로 쓸 수 있게
 4. [ ] 자막 SRT 만들기(편마다)
