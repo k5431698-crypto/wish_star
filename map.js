@@ -10,12 +10,7 @@
   const loader = new THREE.GLTFLoader();
   const load = (url) => new Promise((ok, no) => loader.load(url, ok, undefined, no));
   // 나무·덤불·모닥불 등은 Quaternius 무료(CC0) 모델 (assets/models/q/LICENSE.md)
-  const PROP_FILES = {
-    tree_autumn1: 'CommonTree_Autumn_1', tree_autumn2: 'CommonTree_Autumn_2', tree_autumn3: 'CommonTree_Autumn_3',
-    tree_green: 'CommonTree_1', tree_willow: 'Willow_1', tree_pine: 'PineTree_1', tree_birch: 'BirchTree_Autumn_1',
-    bush: 'Bush_1', bush_berry: 'BushBerries_1', flowers: 'Flowers', rock: 'Rock_Moss_1', log: 'WoodLog',
-    campfire: 'Bonfire', fire: 'Bonfire_Fire',
-  };
+  const PROP_FILES = { flowers: 'Flowers', log: 'WoodLog', campfire: 'Bonfire', fire: 'Bonfire_Fire' };
   const kinds = Object.keys(PROP_FILES);
   Promise.all([fetch('assets/models/island-map.json').then((r) => r.json()), load('assets/models/island.glb'), load('assets/models/character.glb'),
     Promise.all(kinds.map((k) => load('assets/models/q/' + PROP_FILES[k] + '.glb')))])
@@ -24,7 +19,7 @@
       kinds.forEach((k, i) => { PROPS[k] = props[i].scene; });
       hintEl.textContent = hintText; main(map, isl, ch, PROPS);
     })
-    .catch(() => { document.getElementById('fail').textContent = '섬을 불러오지 못했어요. 새로고침해 주세요.'; document.getElementById('fail').style.display = 'flex'; });
+    .catch((err) => { console.error('load/main error: ' + (err && err.stack || err)); document.getElementById('fail').textContent = '섬을 불러오지 못했어요. 새로고침해 주세요.'; document.getElementById('fail').style.display = 'flex'; });
 
   function main(MAP, ISL, CH, PROPS) {
 
@@ -45,7 +40,7 @@
 
   const scene = new THREE.Scene();
   const HORIZON = new THREE.Color(0xe8bcbc);
-  scene.fog = new THREE.FogExp2(HORIZON, 0.0065);
+  scene.fog = new THREE.FogExp2(HORIZON, 0.0048);
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
 
   const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
@@ -253,7 +248,22 @@
   ISL.scene.traverse((o) => {
     if (o.isMesh) {
       o.castShadow = true; o.receiveShadow = true;
-      if (!terrain && (o.name.startsWith('Terrain') || (o.parent && o.parent.name.startsWith('Terrain')))) { terrain = o; o.castShadow = false; o.material.color.set(0xffe6d8); }   // 땅을 따뜻한 빛으로
+      if (!terrain && (o.name.startsWith('Terrain') || (o.parent && o.parent.name.startsWith('Terrain')))) { terrain = o; o.castShadow = false;
+        // 땅 색: 연한 풀빛과 라벤더가 섞이게 + 위치에 따라 은은한 얼룩(평평해 보이지 않게)
+        const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
+        mat.onBeforeCompile = (sh) => {
+          sh.vertexShader = 'varying vec3 vW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vW = (modelMatrix * vec4(position,1.0)).xyz;');
+          sh.fragmentShader = 'varying vec3 vW;\nfloat h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\n' +
+            'float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}\n' +
+            sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n' +
+              ' float n1 = vn(vW.xz*0.35), n2 = vn(vW.xz*1.8), n3 = vn(vW.xz*7.0);\n' +
+              ' vec3 greenT = vec3(0.55,0.95,0.42), warmT = vec3(1.0,0.93,0.82);\n' +
+              ' diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb*greenT*1.5, smoothstep(0.25,0.65,n1)*0.8);\n' +
+              ' diffuseColor.rgb *= (0.9 + 0.2*n2 + 0.1*(n3-0.5)) * 0.85;\n' +
+              ' diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb*warmT, 0.25);');
+        };
+        o.material = mat;
+      }
       if (/LanternGlow|LighthouseLamp/.test(o.name) || (o.parent && /LanternGlow|LighthouseLamp/.test(o.parent.name))) glowSpots.push(o);
     }
   });
@@ -267,17 +277,238 @@
 
   const uniTime = { value: 0 };
 
-  // ---- 나무·덤불·꽃·바위·모닥불 놓기 (Quaternius CC0 모델) ----
+  // ---- 나무: 나무마다 모양이 다르게 코드로 만든다 (가지 + 수천 장의 잎) ----
+  function rngFrom(seed) { let t = Math.floor(seed) % 2147483647; if (t <= 0) t += 2147483646; return () => (t = (t * 16807) % 2147483647) / 2147483647; }
+
+  // 잎 그림: 잎사귀 여러 장이 모인 덩어리 (회색~흰색이라 나무마다 색을 입힘)
+  const leafTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const R = rngFrom(11);
+    g.fillStyle = 'rgb(150,150,150)'; g.beginPath(); g.arc(64, 64, 9, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + R() * 0.5, len = 36 + R() * 14, w = 11 + R() * 5;
+      g.save(); g.translate(64, 64); g.rotate(a);
+      const gr = g.createLinearGradient(0, 0, len, 0);
+      gr.addColorStop(0, 'rgb(160,160,160)'); gr.addColorStop(1, 'rgb(255,255,255)');
+      g.fillStyle = gr; g.beginPath(); g.moveTo(3, 0);
+      g.bezierCurveTo(len * 0.3, -w, len * 0.78, -w * 0.8, len, 0);
+      g.bezierCurveTo(len * 0.78, w * 0.8, len * 0.3, w, 3, 0); g.fill();
+      g.strokeStyle = 'rgba(110,110,110,0.7)'; g.lineWidth = 1.1;
+      g.beginPath(); g.moveTo(3, 0); g.lineTo(len * 0.9, 0); g.stroke();
+      g.restore();
+    }
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  })();
+  const leafGeo = new THREE.PlaneGeometry(1, 1);
+  leafGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));   // 위를 보게 해서 부드러운 빛
+  const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9, emissive: 0x3a2a30, emissiveMap: leafTex, emissiveIntensity: 0.35 });
+  leafMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = uniTime;
+    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\n' +
+      ' transformed.x += sin(uTime * 1.5 + ip.x * 1.7 + ip.z) * 0.03; transformed.y += cos(uTime * 1.2 + ip.z * 1.3 + ip.y) * 0.02;');
+  };
+  const barkMat = new THREE.MeshStandardMaterial({ color: 0x4a3830, roughness: 1 });
+  const blobTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(30,15,50,0.5)'); gr.addColorStop(1, 'rgba(30,15,50,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+  })();
+
+  // 종류: crown=수관 모양, h=키, tr=줄기 굵기, spread=가지 뻗음, cards=잎 장수, card=잎 크기, cols=잎 색
+  const SPECIES = {
+    oak:    { crown: 'round', h: [4.6, 5.8], tr: 0.30, spread: 1.9, cards: 910, card: 0.78, cols: [0x7fae62, 0x6a9c52, 0x93bd70] },
+    maple:  { crown: 'round', h: [5.2, 6.4], tr: 0.34, spread: 2.1, cards: 988, card: 0.78, cols: [0xd9482f, 0xe5653a, 0xc43a2c] },
+    golden: { crown: 'oval',  h: [5.4, 6.8], tr: 0.26, spread: 1.5, cards: 832, card: 0.74, cols: [0xe8b84a, 0xf2cb62, 0xd9a03a] },
+    violet: { crown: 'round', h: [4.4, 5.4], tr: 0.28, spread: 1.8, cards: 910, card: 0.76, cols: [0x4d4a8a, 0x5d5aa0, 0x403e74] },
+    cherry: { crown: 'round', h: [3.8, 4.8], tr: 0.24, spread: 2.0, cards: 832, card: 0.76, cols: [0xf7b6cf, 0xf1a0c1, 0xfbd2e1] },
+    willow: { crown: 'weeping', h: [4.2, 5.2], tr: 0.28, spread: 1.7, cards: 910, card: 0.62, cols: [0x9cc28a, 0x86b078, 0xb4d19a] },
+    pine:   { crown: 'cone',  h: [5.6, 7.2], tr: 0.22, spread: 1.7, cards: 728, card: 0.62, cols: [0x3f6f58, 0x4b7d63, 0x35604c] },
+    bush:   { crown: 'bush',  h: [0.8, 1.2], tr: 0, spread: 0.7, cards: 130, card: 0.52, cols: [0x7fae62, 0x6a9c52, 0x93bd70] },
+    bushBerry: { crown: 'bush', h: [0.8, 1.2], tr: 0, spread: 0.7, cards: 130, card: 0.52, cols: [0x6f9c58, 0x5f8c4c, 0x86b068], berry: 0xd94a5a },
+  };
+
+  function mergeGeos(list) {
+    let nv = 0, ni = 0;
+    list.forEach((g) => { nv += g.attributes.position.count; ni += g.index.count; });
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), idx = new Uint32Array(ni);
+    let ov = 0, oi = 0;
+    list.forEach((g) => {
+      pos.set(g.attributes.position.array, ov * 3); nor.set(g.attributes.normal.array, ov * 3);
+      for (let i = 0; i < g.index.count; i++) idx[oi + i] = g.index.array[i] + ov;
+      ov += g.attributes.position.count; oi += g.index.count;
+    });
+    const m = new THREE.BufferGeometry();
+    m.setAttribute('position', new THREE.BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    m.setIndex(new THREE.BufferAttribute(idx, 1));
+    return m;
+  }
+  const UPV = new THREE.Vector3(0, 1, 0);
+  function segGeo(a, b, r0, r1) {
+    const d = b.clone().sub(a), len = d.length();
+    const g = new THREE.CylinderGeometry(Math.max(r1, 0.012), Math.max(r0, 0.015), len, 7, 1);
+    g.translate(0, len / 2, 0);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(UPV, d.normalize())));
+    g.translate(a.x, a.y, a.z);
+    return g;
+  }
+
+  function buildTree(key, seed, scale) {
+    const sp = SPECIES[key], R = rngFrom(seed), rr = (a, b) => a + (b - a) * R();
+    const group = new THREE.Group();
+    const geos = [], anchors = [];     // anchors: 잎이 모이는 자리 {p, rad, hang}
+    const H = rr(sp.h[0], sp.h[1]);
+    let treeR = 0.3;
+
+    if (sp.crown === 'bush') {
+      const n = 6 + Math.floor(R() * 3);
+      for (let i = 0; i < n; i++) {
+        const a = R() * Math.PI * 2, d = rr(0, sp.spread);
+        anchors.push({ p: new THREE.Vector3(Math.cos(a) * d, rr(0.25, H * 0.7), Math.sin(a) * d), rad: rr(0.35, 0.6) });
+      }
+      treeR = 0.5;
+    } else {
+      // 줄기: 살짝 휘어서 위로
+      const trunkFrac = sp.crown === 'cone' ? 0.95 : sp.crown === 'weeping' ? 0.55 : 0.55;
+      const n = 6, segL = (H * trunkFrac) / n, r0 = sp.tr * rr(0.9, 1.15);
+      let p = new THREE.Vector3(), dir = new THREE.Vector3(rr(-0.1, 0.1), 1, rr(-0.1, 0.1)).normalize();
+      const pts = [p.clone()];
+      for (let i = 0; i < n; i++) {
+        if (sp.crown !== 'cone') { dir.x += rr(-0.14, 0.14); dir.z += rr(-0.14, 0.14); } else { dir.x += rr(-0.03, 0.03); dir.z += rr(-0.03, 0.03); }
+        dir.y = 1; dir.normalize();
+        const np = p.clone().addScaledVector(dir, segL);
+        geos.push(segGeo(p, np, r0 * (1 - (i / n) * (sp.crown === 'cone' ? 0.8 : 0.5)), r0 * (1 - ((i + 1) / n) * (sp.crown === 'cone' ? 0.8 : 0.5))));
+        p = np; pts.push(p.clone());
+      }
+      treeR = r0 * 1.2;
+      const top = pts[pts.length - 1];
+      if (sp.crown === 'cone') {
+        const L = 7;
+        for (let k = 0; k < L; k++) {
+          const f = k / (L - 1), y = H * (0.22 + 0.76 * f), rad = sp.spread * (1 - f * 0.88) * rr(0.85, 1.1);
+          const m = 5 + Math.floor((1 - f) * 3), a0 = R() * 6.28;
+          for (let j = 0; j < m; j++) {
+            const a = a0 + (j / m) * Math.PI * 2 + rr(-0.2, 0.2);
+            const tip = new THREE.Vector3(Math.cos(a) * rad, y - rad * 0.35, Math.sin(a) * rad);
+            geos.push(segGeo(new THREE.Vector3(top.x * f, y, top.z * f), tip, 0.04, 0.012));
+            anchors.push({ p: tip, rad: 0.55 * (1 - f * 0.4) });
+          }
+        }
+        anchors.push({ p: new THREE.Vector3(0, H, 0), rad: 0.35 });
+      } else if (sp.crown === 'weeping') {
+        const nb = 7 + Math.floor(R() * 3);
+        for (let i = 0; i < nb; i++) {
+          let q = pts[Math.floor(rr(3, 6.99))].clone(), a = R() * Math.PI * 2;
+          let d = new THREE.Vector3(Math.cos(a), rr(0.9, 1.5), Math.sin(a)).normalize();
+          const steps = 5, sl = rr(0.5, 0.75) * sp.spread * 0.55;
+          let r = 0.07;
+          for (let k = 0; k < steps; k++) {
+            const nq = q.clone().addScaledVector(d, sl);
+            geos.push(segGeo(q, nq, r, r * 0.7)); r *= 0.7;
+            d.y -= 0.32 + k * 0.08; d.normalize();
+            q = nq;
+            if (k >= 1) anchors.push({ p: q.clone(), rad: 0.28, hang: rr(1.0, 2.2) });
+          }
+        }
+        treeR = 0.45;
+      } else {
+        // 굵은 가지 → 잔가지로 갈라짐
+        const nb = 4 + Math.floor(R() * 4);
+        for (let i = 0; i < nb; i++) {
+          const f = rr(0.45, 1.0), q0 = pts[Math.min(pts.length - 1, Math.floor(f * (pts.length - 1)))].clone();
+          const a = R() * Math.PI * 2, el = rr(0.25, 0.85);
+          const d = new THREE.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el));
+          const L1 = rr(0.9, 1.5) * sp.spread * 0.6;
+          const q1 = q0.clone().addScaledVector(d, L1);
+          geos.push(segGeo(q0, q1, 0.11, 0.07));
+          const kids = 2 + Math.floor(R() * 2);
+          for (let k = 0; k < kids; k++) {
+            const d2 = d.clone().add(new THREE.Vector3(rr(-0.7, 0.7), rr(-0.1, 0.5), rr(-0.7, 0.7))).normalize();
+            const L2 = rr(0.7, 1.2) * sp.spread * 0.5;
+            const q2 = q1.clone().addScaledVector(d2, L2);
+            geos.push(segGeo(q1, q2, 0.06, 0.025));
+            anchors.push({ p: q2, rad: rr(0.55, 0.95) });
+          }
+          anchors.push({ p: q1.clone(), rad: 0.6 });
+        }
+        anchors.push({ p: top.clone().add(new THREE.Vector3(0, 0.6, 0)), rad: 0.9 });
+        if (sp.crown === 'oval') anchors.forEach((an) => { an.p.y = top.y + (an.p.y - top.y) * 1.3 + 0.4; an.p.x *= 0.78; an.p.z *= 0.78; });
+      }
+    }
+
+    // 줄기와 가지는 한 덩어리 메쉬
+    if (geos.length) {
+      const trunk = new THREE.Mesh(mergeGeos(geos), barkMat);
+      trunk.castShadow = true; group.add(trunk);
+    }
+    // 잎: 한 번에 그리는 수천 장의 잎
+    const N = Math.floor(sp.cards * rr(0.85, 1.1)), inst = new THREE.InstancedMesh(leafGeo, leafMat, N);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), pp = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+    let minY = 1e9, maxY = -1e9; anchors.forEach((a) => { minY = Math.min(minY, a.p.y); maxY = Math.max(maxY, a.p.y); });
+    const pal = sp.cols.map((h) => new THREE.Color(h).convertSRGBToLinear());
+    for (let i = 0; i < N; i++) {
+      const an = anchors[Math.floor(R() * anchors.length)];
+      const u = R() * Math.PI * 2, v = Math.acos(2 * R() - 1), rad = an.rad * Math.cbrt(R());
+      pp.set(an.p.x + Math.sin(v) * Math.cos(u) * rad, an.p.y + Math.cos(v) * rad * 0.8, an.p.z + Math.sin(v) * Math.sin(u) * rad);
+      let sz = sp.card * rr(0.75, 1.3);
+      if (an.hang) { pp.y -= R() * an.hang; sc.set(sz * 0.7, sz * 1.4, 1); e.set(rr(-0.4, 0.4), R() * 6.28, rr(-0.3, 0.3)); }
+      else { sc.set(sz, sz, 1); e.set(rr(-1.6, 1.6), R() * 6.28, rr(-1.6, 1.6)); }
+      q.setFromEuler(e); m.compose(pp, q, sc); inst.setMatrixAt(i, m);
+      const shade = 0.72 + 0.33 * ((pp.y - minY) / Math.max(0.5, maxY - minY)) + rr(-0.08, 0.08);
+      col.copy(pal[Math.floor(R() * pal.length)]).multiplyScalar(shade);
+      if (sp.berry && R() < 0.1) col.set(sp.berry).convertSRGBToLinear();
+      inst.setColorAt(i, col);
+    }
+    inst.castShadow = false; inst.frustumCulled = true;   // 잎 그림자는 발밑 그림자 자국으로 대신(가볍게)
+    group.add(inst);
+    // 발밑 그림자 자국
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    const bs = (sp.spread + 0.9) * (sp.crown === 'bush' ? 1.4 : 1.9);
+    blob.scale.set(bs, bs, 1); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.05; group.add(blob);
+    group.scale.setScalar(scale);
+    return group;
+  }
+
+  // 부드러운 바위: 둥글게 울퉁불퉁하고 윗면에 이끼
+  function makeRock(seed, size) {
+    const R = rngFrom(seed);
+    const g = new THREE.IcosahedronGeometry(0.5, 3), pos = g.attributes.position;
+    const cols = new Float32Array(pos.count * 3), c = new THREE.Color(), base = new THREE.Color(0x9a93b0).convertSRGBToLinear(), moss = new THREE.Color(0x7fa070).convertSRGBToLinear();
+    const sx = 0.8 + R() * 0.7, sz = 0.7 + R() * 0.6, ox = R() * 50;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const k = 1 + (fbm(x * 3 + ox, z * 3 + y * 2) - 0.5) * 0.7;
+      pos.setXYZ(i, x * k * sx, Math.max(y * k * 0.7, -0.08), z * k * sz);
+      c.copy(base).lerp(moss, Math.max(0, Math.min(1, (y + 0.1) * 2.2)) * 0.8);
+      cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3)); g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+    mesh.scale.setScalar(size); mesh.castShadow = true; mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  // ---- 나무·덤불·꽃·바위·모닥불 놓기 ----
+  const TREE_SP = { tree_autumn1: 'maple', tree_autumn2: 'golden', tree_autumn3: 'violet', tree_green: 'oak', tree_willow: 'willow', tree_pine: 'pine', tree_birch: 'cherry' };
   let campfire = null;
   (function placeProps() {
-    const base = { tree: 1, bush: 1, flowers: 1.3, rock: 0.9, log: 1, campfire: 1 };
-    MAP.props.forEach((p) => {
+    const base = { flowers: 1.3, log: 1, campfire: 1 };
+    MAP.props.forEach((p, idx) => {
+      const y = heightAt(p.x, p.z) - 0.03;
+      if (TREE_SP[p.k] || p.k === 'bush' || p.k === 'bush_berry') {
+        const key = TREE_SP[p.k] || (p.k === 'bush' ? 'bush' : 'bushBerry');
+        const t = buildTree(key, 1000 + idx * 7919, TREE_SP[p.k] ? p.s * 0.62 : p.s);
+        t.position.set(p.x, y, p.z); t.rotation.y = p.r; scene.add(t);
+        return;
+      }
+      if (p.k === 'rock') { const r = makeRock(500 + idx * 131, 1.1 * p.s); r.position.set(p.x, y, p.z); r.rotation.y = p.r; scene.add(r); return; }
       const src = PROPS[p.k];
       if (!src) return;
       const o = src.clone(true);
-      o.position.set(p.x, heightAt(p.x, p.z) - 0.03, p.z);
+      o.position.set(p.x, y, p.z);
       o.rotation.y = p.r;
-      o.scale.setScalar(p.s * (base[p.k.split('_')[0]] || 1));
+      o.scale.setScalar(p.s * (base[p.k] || 1));
       o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
       scene.add(o);
       if (p.k === 'campfire') {
@@ -391,21 +622,41 @@
   let camYaw = 0, camPitch = 0.42, camDist = 8;
   const camPos = new THREE.Vector3();
   let down = null;
-  canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, drag: false }; });
+  const ptrs = new Map();            // 화면에 닿아 있는 손가락들 (두 손가락이면 확대·축소)
+  let pinchD = 0;
+  const DIST_MIN = 2.6, DIST_MAX = 34;
+  const zoomBy = (k) => { camDist = Math.min(DIST_MAX, Math.max(DIST_MIN, camDist * k)); };
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(Math.exp(e.deltaY * 0.0012)); hint.classList.add('off'); }, { passive: false });
+  canvas.addEventListener('pointerdown', (e) => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, drag: false };
+    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinchD = Math.hypot(a.x - b.x, a.y - b.y); if (down) down.drag = true; }
+  });
   canvas.addEventListener('pointermove', (e) => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size >= 2) {                       // 핀치: 벌리면 가까이, 오므리면 멀리
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchD > 0 && d > 0) zoomBy(pinchD / d);
+      pinchD = d;
+      return;
+    }
     if (!down) return;
     if (!down.drag && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) down.drag = true;
     if (down.drag) {
       camYaw -= (e.clientX - down.lx) * 0.006;
-      camPitch = Math.min(0.75, Math.max(0.12, camPitch + (e.clientY - down.ly) * 0.003));
+      camPitch = Math.min(1.15, Math.max(0.1, camPitch + (e.clientY - down.ly) * 0.003));
       down.lx = e.clientX; down.ly = e.clientY;
     }
   });
+  const endPtr = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinchD = 0; };
+  canvas.addEventListener('pointercancel', endPtr);
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   canvas.addEventListener('pointerup', (e) => {
+    endPtr(e);
     if (!down) return;
     const wasDrag = down.drag;
+    if (ptrs.size > 0) return;      // 아직 다른 손가락이 닿아 있으면 탭으로 보지 않음
     down = null;
     hint.classList.add('off');
     if (wasDrag) return;
