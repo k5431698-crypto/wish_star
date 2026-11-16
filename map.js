@@ -737,7 +737,9 @@
     }
   });
   const endPtr = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinchD = 0; };
-  canvas.addEventListener('pointercancel', endPtr);
+  canvas.addEventListener('pointercancel', (e) => { endPtr(e); if (!ptrs.size) down = null; });
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((n) => document.addEventListener(n, (e) => e.preventDefault(), { passive: false }));   // 아이폰 기본 확대(튕겨 돌아옴) 막기
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   canvas.addEventListener('pointerup', (e) => {
