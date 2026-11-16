@@ -703,6 +703,7 @@
 
   // ---- 촬영 모드: 주소 끝에 ?cine=1 을 붙이면 글자가 사라지고 카메라가 천천히 돌며 움직임 (인스타 영상 화면 녹화용) ----
   const CINE = /[?&]cine=1/.test(location.search);
+  if (CINE) renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 3));   // 촬영 모드는 최대 화질로 그림(폰 화면 해상도 그대로)
   if (CINE) { ['hint'].forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; }); const b = document.querySelector('.back'); if (b) b.style.display = 'none'; }
 
   // ---- 카메라 조작: 탭은 걷기, 옆으로 밀기는 둘러보기 ----
