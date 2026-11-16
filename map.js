@@ -724,7 +724,7 @@
     if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (ptrs.size >= 2) {                       // 핀치: 벌리면 가까이, 오므리면 멀리
       const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinchD > 0 && d > 0) zoomBy(pinchD / d);
+      if (!tp && pinchD > 0 && d > 0) zoomBy(pinchD / d);
       pinchD = d;
       return;
     }
@@ -739,7 +739,21 @@
   const endPtr = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinchD = 0; };
   canvas.addEventListener('pointercancel', (e) => { endPtr(e); if (!ptrs.size) down = null; });
   ['gesturestart', 'gesturechange', 'gestureend'].forEach((n) => document.addEventListener(n, (e) => e.preventDefault(), { passive: false }));   // 아이폰 기본 확대(튕겨 돌아옴) 막기
-  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  // 폰 핀치: 터치 이벤트로 직접 처리 (처음 간격 대비 현재 간격으로 거리를 정함 → 중간에 이벤트가 끊겨도 튕기지 않음)
+  let tp = null;
+  const tdist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { tp = { d: tdist(e.touches), z: camDist }; if (down) down.drag = true; } }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      if (!tp) tp = { d: tdist(e.touches), z: camDist };
+      const d = tdist(e.touches);
+      if (d > 0) camDist = Math.min(DIST_MAX, Math.max(DIST_MIN, tp.z * tp.d / d));
+      hint.classList.add('off');
+    }
+  }, { passive: false });
+  const tend = (e) => { if (e.touches.length < 2) tp = null; };
+  canvas.addEventListener('touchend', tend); canvas.addEventListener('touchcancel', tend);
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   canvas.addEventListener('pointerup', (e) => {
