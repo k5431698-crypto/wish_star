@@ -9,11 +9,24 @@
   hintEl.textContent = '섬을 불러오는 중이에요...';
   const loader = new THREE.GLTFLoader();
   const load = (url) => new Promise((ok, no) => loader.load(url, ok, undefined, no));
-  Promise.all([fetch('assets/models/island-map.json').then((r) => r.json()), load('assets/models/island.glb'), load('assets/models/character.glb')])
-    .then(([map, isl, ch]) => { hintEl.textContent = hintText; main(map, isl, ch); })
+  // 나무·덤불·모닥불 등은 Quaternius 무료(CC0) 모델 (assets/models/q/LICENSE.md)
+  const PROP_FILES = {
+    tree_autumn1: 'CommonTree_Autumn_1', tree_autumn2: 'CommonTree_Autumn_2', tree_autumn3: 'CommonTree_Autumn_3',
+    tree_green: 'CommonTree_1', tree_willow: 'Willow_1', tree_pine: 'PineTree_1', tree_birch: 'BirchTree_Autumn_1',
+    bush: 'Bush_1', bush_berry: 'BushBerries_1', flowers: 'Flowers', rock: 'Rock_Moss_1', log: 'WoodLog',
+    campfire: 'Bonfire', fire: 'Bonfire_Fire',
+  };
+  const kinds = Object.keys(PROP_FILES);
+  Promise.all([fetch('assets/models/island-map.json').then((r) => r.json()), load('assets/models/island.glb'), load('assets/models/character.glb'),
+    Promise.all(kinds.map((k) => load('assets/models/q/' + PROP_FILES[k] + '.glb')))])
+    .then(([map, isl, ch, props]) => {
+      const PROPS = {};
+      kinds.forEach((k, i) => { PROPS[k] = props[i].scene; });
+      hintEl.textContent = hintText; main(map, isl, ch, PROPS);
+    })
     .catch(() => { document.getElementById('fail').textContent = '섬을 불러오지 못했어요. 새로고침해 주세요.'; document.getElementById('fail').style.display = 'flex'; });
 
-  function main(MAP, ISL, CH) {
+  function main(MAP, ISL, CH, PROPS) {
 
   const canvas = document.getElementById('c');
   let renderer;
@@ -252,74 +265,35 @@
     if (big) { const pl = new THREE.PointLight(0xffd99a, 1.4, 16, 2); pl.position.copy(p); scene.add(pl); }
   });
 
-  // ---- 바람에 흔들리는 풀 (부드러운 풀 다발 그림을 십자로 세움) ----
   const uniTime = { value: 0 };
-  (function grass() {
-    // 풀 다발 그림: 아래는 어둡고 끝으로 갈수록 밝은, 살짝 휘어진 풀잎 여러 장
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = 128;
-    const g = cv.getContext('2d');
-    let seed = 7;
-    const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 34; i++) {
-      const bx = 30 + r() * 68, tx = bx + (r() - 0.5) * 70, ty = 40 + r() * 55;
-      const cx = bx + (tx - bx) * 0.3 + (r() - 0.5) * 12, cy = 126 - (126 - ty) * 0.6;
-      const w = 1.7 + r() * 1.4;
-      const gr = g.createLinearGradient(0, 126, 0, ty);
-      gr.addColorStop(0, 'rgb(235,230,232)'); gr.addColorStop(1, 'rgb(255,255,255)');
-      g.fillStyle = gr;
-      g.beginPath();
-      g.moveTo(bx - w, 127);
-      g.quadraticCurveTo(cx - w * 0.5, cy, tx, ty);
-      g.quadraticCurveTo(cx + w * 0.5, cy, bx + w, 127);
-      g.fill();
-    }
-    const tuftTex = new THREE.CanvasTexture(cv);
-    tuftTex.encoding = THREE.sRGBEncoding;
-    tuftTex.anisotropy = 4;
 
-    const p1 = new THREE.PlaneGeometry(0.8, 0.8); p1.translate(0, 0.4, 0);
-    const p2 = p1.clone(); p2.rotateY(Math.PI / 2);
-    const merged = new THREE.BufferGeometry();
-    const pos = new Float32Array([...p1.attributes.position.array, ...p2.attributes.position.array]);
-    const uv = new Float32Array([...p1.attributes.uv.array, ...p2.attributes.uv.array]);
-    const nor = new Float32Array([...p1.attributes.normal.array, ...p2.attributes.normal.array]);
-    const idx = [...p1.index.array, ...Array.from(p2.index.array, (v) => v + 4)];
-    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-    merged.setIndex(idx);
-
-    const mat = new THREE.MeshStandardMaterial({ map: tuftTex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 1, emissive: 0xa89098, emissiveMap: tuftTex, emissiveIntensity: 0.6 });
-    mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uTime = uniTime;
-      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
-        '#include <begin_vertex>\n vec3 ip = vec3(instanceMatrix[3][0], 0.0, instanceMatrix[3][2]);\n' +
-        ' float w = sin(uTime * 1.3 + ip.x * 0.35 + ip.z * 0.25) * 0.5 + sin(uTime * 2.1 + ip.x * 0.8) * 0.15;\n' +
-        ' transformed.x += w * position.y * position.y * 0.5; transformed.z += w * position.y * position.y * 0.2;');
-    };
-    const COUNT = 11000;
-    const mesh = new THREE.InstancedMesh(merged, mat, COUNT);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pp = new THREE.Vector3(), e = new THREE.Euler();
-    const ca = lin(0xd9c9f2), cb = lin(0xbfdcae), cc = lin(0xfbeedd), col = new THREE.Color();
-    let n = 0;
-    for (let tries = 0; tries < COUNT * 5 && n < COUNT; tries++) {
-      const x = (Math.random() - 0.5) * 78, z = (Math.random() - 0.5) * 78;
-      const h = heightAt(x, z);
-      if (h < 0.55 || pathDist(x, z) < 1.2 || trees.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + 0.4)) continue;
-      pp.set(x, h - 0.03, z);
-      e.set(0, Math.random() * Math.PI, 0);
-      q.setFromEuler(e);
-      const k = 0.4 + Math.random() * 0.45;
-      sc.set(k, k * (0.7 + Math.random() * 0.6), k);
-      m.compose(pp, q, sc);
-      mesh.setMatrixAt(n, m);
-      col.copy(ca).lerp(cb, Math.random() * 0.7).lerp(cc, Math.random() * 0.4);
-      mesh.setColorAt(n, col);
-      n++;
-    }
-    mesh.count = n;
-    scene.add(mesh);
+  // ---- 나무·덤불·꽃·바위·모닥불 놓기 (Quaternius CC0 모델) ----
+  let campfire = null;
+  (function placeProps() {
+    const base = { tree: 1, bush: 1, flowers: 1.3, rock: 0.9, log: 1, campfire: 1 };
+    MAP.props.forEach((p) => {
+      const src = PROPS[p.k];
+      if (!src) return;
+      const o = src.clone(true);
+      o.position.set(p.x, heightAt(p.x, p.z) - 0.03, p.z);
+      o.rotation.y = p.r;
+      o.scale.setScalar(p.s * (base[p.k.split('_')[0]] || 1));
+      o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+      scene.add(o);
+      if (p.k === 'campfire') {
+        const fire = PROPS.fire.clone(true);
+        fire.position.copy(o.position); fire.rotation.y = p.r; fire.scale.copy(o.scale);
+        fire.traverse((m) => { if (m.isMesh) { m.material = m.material.clone(); m.material.emissive = new THREE.Color(0xff7a2a); m.material.emissiveIntensity = 1.2; } });
+        scene.add(fire);
+        const light = new THREE.PointLight(0xff9a4a, 2.2, 12, 2);
+        light.position.set(o.position.x, o.position.y + 0.9, o.position.z);
+        scene.add(light);
+        const glow = glowSprite(0xffa060, 3.2, 0.7);
+        glow.position.set(o.position.x, o.position.y + 0.6, o.position.z);
+        scene.add(glow);
+        campfire = { fire, light, glow, pos: o.position.clone(), base: o.scale.x, embers: [], t: 0 };
+      }
+    });
   })();
 
   // ---- 반딧불이 ----
@@ -364,7 +338,7 @@
   const me = {
     pos: new THREE.Vector3(MAP.spawn[0], 0, MAP.spawn[1]),
     heading: 0,                     // 바라보는 방향 (0 = +z 카메라 쪽, π = -z 길 쪽)
-    target: null, phase: 0, blinkT: 3, blink: 0, acc: 0, jump: 0,
+    target: null, phase: 0, blinkT: 3, blink: 0, acc: 0, jump: 0, stuck: 0, lastDist: 1e9,
   };
   me.pos.y = heightAt(me.pos.x, me.pos.z);
 
@@ -471,7 +445,7 @@
       target = last;
     }
     if (!target) return;
-    me.target = target;
+    me.target = target; me.lastDist = 1e9; me.stuck = 0;
     ringG.position.set(target.x, heightAt(target.x, target.z) + 0.04, target.z);
     ringOn = 1; ringT = 0;
     const rp = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
@@ -501,12 +475,25 @@
       if (dist < 0.08) me.target = null;
       else {
         const want = Math.atan2(tmp.x, tmp.z);
-        me.heading = angleLerp(me.heading, want, Math.min(1, dt * 8));
         const st = Math.min(dist, SPEED * dt);
-        const nx = me.pos.x + Math.sin(me.heading) * st, nz = me.pos.z + Math.cos(me.heading) * st;
-        const blocked = heightAt(nx, nz) < WALKABLE || trees.some((o) => Math.hypot(o.x - nx, o.z - nz) < o.r);
-        if (blocked) me.target = null;
-        else { me.pos.x = nx; me.pos.z = nz; walking = true; }
+        // 막힌 곳 안으로 더 들어가는 걸음만 막는다 (이미 가까이 있어도 빠져나오는 쪽으로는 걸을 수 있음)
+        const blocked = (nx, nz) => heightAt(nx, nz) < WALKABLE ||
+          trees.some((o) => { const d2 = Math.hypot(o.x - nx, o.z - nz); return d2 < o.r && d2 < Math.hypot(o.x - me.pos.x, o.z - me.pos.z); });
+        let moved = false;
+        // 똑바로 못 가면 조금씩 옆으로 꺾어서 돌아간다
+        for (const da of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6]) {
+          const hd = want + da;
+          const nx = me.pos.x + Math.sin(hd) * st, nz = me.pos.z + Math.cos(hd) * st;
+          if (!blocked(nx, nz)) {
+            me.heading = angleLerp(me.heading, hd, Math.min(1, dt * 8));
+            me.pos.x = nx; me.pos.z = nz; moved = true; walking = true;
+            break;
+          }
+        }
+        // 오래 제자리면(돌아갈 길이 없으면) 멈춘다
+        me.stuck = moved && dist < me.lastDist - 0.002 ? 0 : (me.stuck || 0) + dt;
+        me.lastDist = dist;
+        if (!moved || me.stuck > 1.5) { me.target = null; me.stuck = 0; }
       }
     }
     me.pos.y = heightAt(me.pos.x, me.pos.z);
@@ -564,6 +551,23 @@
       s.position.copy(fairy.pos);
       sparks.push({ s, v: new THREE.Vector3((Math.random() - 0.5) * 0.2, -0.35, (Math.random() - 0.5) * 0.2), life: 0, max: 1.1 });
       scene.add(s);
+    }
+
+    // 모닥불: 불꽃이 살랑이고, 불씨가 위로 날아오름
+    if (campfire) {
+      const c = campfire;
+      const f = 1 + Math.sin(time * 9) * 0.06 + Math.sin(time * 23) * 0.04;
+      c.fire.scale.set(c.base * (1 + Math.sin(time * 7) * 0.03), c.base * f, c.base * (1 + Math.cos(time * 6) * 0.03));
+      c.light.intensity = 2.0 + Math.sin(time * 11) * 0.35 + Math.sin(time * 27) * 0.2;
+      c.glow.material.opacity = 0.6 + Math.sin(time * 13) * 0.1;
+      c.t -= dt;
+      if (c.t <= 0) {
+        c.t = 0.08;
+        const s = glowSprite(0xffb070, 0.12, 0.95);
+        s.position.set(c.pos.x + (Math.random() - 0.5) * 0.5, c.pos.y + 0.6, c.pos.z + (Math.random() - 0.5) * 0.5);
+        sparks.push({ s, v: new THREE.Vector3((Math.random() - 0.5) * 0.3, 1.1 + Math.random() * 0.6, (Math.random() - 0.5) * 0.3), life: 0, max: 1.4 });
+        scene.add(s);
+      }
     }
 
     // 반딧불이

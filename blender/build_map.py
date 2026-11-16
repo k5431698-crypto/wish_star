@@ -190,58 +190,54 @@ GOLD = mat('Gold', lin(0xffcf5a), 0.35, emit=0.6, metal=0.3)
 PAPER = mat('Paper', lin(0xfffaf0), 0.8)
 STONE = mat('Stone', lin(0xd9d2e6), 0.9)
 
-# ---------- 나무 ----------
-
-
-def make_tree(x, z, kind, s):
-    h = height(x, z)
-    parts = []
-    if kind == 'pine':
-        parts.append(add_obj(bpy.ops.mesh.primitive_cylinder_add, B(x, h + 0.6 * s, z), (0.14 * s, 0.14 * s, 0.6 * s), m=TRUNK, vertices=8))
-        for k, (y, r) in enumerate([(1.6, 1.1), (2.4, 0.85), (3.1, 0.6)]):
-            parts.append(add_obj(bpy.ops.mesh.primitive_cone_add, B(x, h + y * s, z), (r * s, r * s, 0.75 * s), m=PINE, vertices=12))
-        obstacles.append([round(x, 2), round(z, 2), round(0.55 * s, 2)])
-    else:
-        parts.append(add_obj(bpy.ops.mesh.primitive_cylinder_add, B(x, h + 1.2 * s, z), (0.13 * s, 0.13 * s, 1.2 * s), m=TRUNK, vertices=8))
-        leaf = rng.choice(LEAVES if kind == 'round' else [LEAVES[3]])
-        for k in range(6):
-            dx, dz, dy = rng.uniform(-0.8, 0.8), rng.uniform(-0.8, 0.8), rng.uniform(2.5, 3.7)
-            parts.append(add_obj(bpy.ops.mesh.primitive_ico_sphere_add, B(x + dx * s, h + dy * s, z + dz * s),
-                                 [rng.uniform(0.7, 1.05) * s] * 3, m=leaf, subdivisions=2))
-        obstacles.append([round(x, 2), round(z, 2), round(0.6 * s, 2)])
-    return group('Tree', parts, B(x, h, z))
-
-
+# ---------- 나무·덤불·바위·꽃 자리 (모델은 사이트에서 Quaternius CC0 모델로 놓음) ----------
+props = []
 spawn = (0.0, 7.0)
+CAMP = (-5.0, 1.0)          # 모닥불 자리 (시작 지점 옆, 길 바깥)
 placed = []
+TREE_KINDS = ['tree_autumn1', 'tree_autumn1', 'tree_autumn2', 'tree_autumn3', 'tree_green', 'tree_willow', 'tree_pine', 'tree_birch']
 tries = 0
-while len(placed) < 34 and tries < 4000:
+while len(placed) < 30 and tries < 5000:
     tries += 1
     x, z = rng.uniform(-30, 30), rng.uniform(-32, 30)
     if height(x, z) < 0.9 or path_dist(x, z) < 3.2 or math.hypot(x - spawn[0], z - spawn[1]) < 6:
         continue
-    if any(math.hypot(px - x, pz - z) < 4.2 for px, pz in placed):
+    if any(math.hypot(px - x, pz - z) < 4.5 for px, pz in placed):
         continue
-    if math.hypot(x - 3.5, z - 3) < 4:
+    if math.hypot(x - 3.5, z - 3) < 4 or math.hypot(x - CAMP[0], z - CAMP[1]) < 5:
         continue
     placed.append((x, z))
-    kind = rng.choice(['round', 'round', 'pine', 'blossom'])
-    make_tree(x, z, kind, rng.uniform(0.8, 1.3))
-
-# ---------- 바위 ----------
-for k in range(18):
-    for _ in range(200):
-        x, z = rng.uniform(-36, 36), rng.uniform(-36, 34)
-        h = height(x, z)
-        if 0.0 < h < 1.2 and path_dist(x, z) > 2:
+    s_ = rng.uniform(1.3, 1.8)
+    props.append({'k': rng.choice(TREE_KINDS), 'x': round(x, 2), 'z': round(z, 2), 's': round(s_, 2), 'r': round(rng.uniform(0, 6.28), 2)})
+    obstacles.append([round(x, 2), round(z, 2), round(0.45 * s_, 2)])
+# 덤불·꽃·바위
+for k, (kind, n, lo, hi, rad) in enumerate([('bush', 22, 0.9, 99, 0.6), ('bush_berry', 10, 0.9, 99, 0.6), ('flowers', 40, 0.7, 99, 0), ('rock', 16, 0.05, 1.4, 0.4)]):
+    c = 0
+    for _ in range(3000):
+        if c >= n:
             break
-    o = add_obj(bpy.ops.mesh.primitive_ico_sphere_add, B(x, h + 0.1, z), (rng.uniform(0.4, 1.1), rng.uniform(0.4, 1.0), rng.uniform(0.3, 0.6)),
-                rot=(0, 0, rng.uniform(0, 6.3)), m=ROCK, subdivisions=2, name='Rock')
-    bm = bmesh.new(); bm.from_mesh(o.data)
-    for v in bm.verts:
-        v.co *= 1 + 0.18 * noise.noise(v.co * 2.3 + Vector((k, k, k)))
-    bm.to_mesh(o.data); bm.free()
-    obstacles.append([round(x, 2), round(z, 2), round(max(o.scale[0], o.scale[1]) * 0.9, 2)])
+        x, z = rng.uniform(-34, 34), rng.uniform(-35, 33)
+        h = height(x, z)
+        if not (lo < h < hi) or path_dist(x, z) < 1.8 or math.hypot(x - spawn[0], z - spawn[1]) < 2.5:
+            continue
+        if math.hypot(x - CAMP[0], z - CAMP[1]) < 3.2 or math.hypot(x - 3.5, z - 3) < 1.5:
+            continue
+        if any(math.hypot(ox - x, oz - z) < orr + 0.6 for ox, oz, orr in obstacles):
+            continue
+        s_ = rng.uniform(0.8, 1.3) if kind != 'flowers' else rng.uniform(0.9, 1.4)
+        props.append({'k': kind, 'x': round(x, 2), 'z': round(z, 2), 's': round(s_, 2), 'r': round(rng.uniform(0, 6.28), 2)})
+        if rad:
+            obstacles.append([round(x, 2), round(z, 2), round(rad * s_, 2)])
+        c += 1
+# 모닥불과 둘러앉는 통나무
+props.append({'k': 'campfire', 'x': CAMP[0], 'z': CAMP[1], 's': 0.6, 'r': 0})
+obstacles.append([CAMP[0], CAMP[1], 0.9])
+for i in range(3):
+    a = i / 3 * math.pi * 2 + 0.4
+    lx_, lz_ = CAMP[0] + math.sin(a) * 2.0, CAMP[1] + math.cos(a) * 2.0
+    props.append({'k': 'log', 'x': round(lx_, 2), 'z': round(lz_, 2), 's': 0.8, 'r': round(-a, 2)})
+    obstacles.append([round(lx_, 2), round(lz_, 2), 0.45])
+places['campfire'] = list(CAMP)
 
 # ---------- 등대 (산책길 끝) ----------
 lx, lz = 17.0, -32.0
@@ -286,7 +282,7 @@ so = bpy.data.objects.new('MailboxStar', smesh); col.objects.link(so)
 so.location = B(mx, mh + 1.62, mz); smesh.materials.append(GOLD)
 parts.append(so)
 group('Mailbox', parts, B(mx, mh, mz))
-obstacles.append([mx, mz, 0.6])
+obstacles.append([mx, mz, 0.38])
 places['mailbox'] = [mx, mz]
 
 # ---------- 길가 등불 ----------
@@ -372,7 +368,7 @@ bpy.ops.object.select_all(action='SELECT')
 bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', use_selection=True, export_apply=True)
 data = {
     'size': SIZE, 'res': RES, 'origin': [-SIZE / 2, -SIZE / 2], 'heights': H,
-    'obstacles': obstacles, 'spawn': list(spawn), 'places': places, 'pierWalk': PIER_WALK,
+    'obstacles': obstacles, 'spawn': list(spawn), 'places': places, 'pierWalk': PIER_WALK, 'props': props,
     'paths': {'main': MAIN_PATH, 'pier': PIER_PATH},
 }
 with open(os.path.join(REPO, 'assets', 'models', 'island-map.json'), 'w') as f:
